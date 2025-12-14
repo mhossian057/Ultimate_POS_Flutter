@@ -131,6 +131,21 @@ class Helper {
     return {'discountAmount': disAmt, 'taxAmount': taxAmt};
   }
 
+  //calculate price excluding tax (for subtotal display)
+  calculateTotalExcludingTax({unitPrice, discountType, discountAmount}) async {
+    double amount = 0.0;
+    unitPrice = double.parse(unitPrice.toString());
+    discountAmount = double.parse(discountAmount.toString());
+    
+    //calculate amount after discount but before tax
+    if (discountType == 'fixed') {
+      amount = unitPrice - discountAmount;
+    } else {
+      amount = unitPrice - (unitPrice * discountAmount / 100);
+    }
+    return amount.toStringAsFixed(2);
+  }
+
   //calculate price including tax
   calculateTotal({unitPrice, discountType, discountAmount, taxId}) async {
     double tax = 0.00;

@@ -1,18 +1,15 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:intl/intl.dart';
 
 import '../helpers/otherHelpers.dart';
 import '../locale/MyLocalizations.dart';
 import '../models/paymentDatabase.dart';
-import '../models/qr.dart';
 import '../models/sellDatabase.dart';
 import '../models/system.dart';
 import 'contact_model.dart';
 
 class InvoiceFormatter {
   double subTotal = 0;
+  double subTotalExcludingTax = 0;
   var taxName = 'taxRates';
   double inlineDiscountAmount = 0.0, inlineTaxAmount = 0.0, tax = 0;
 
@@ -23,24 +20,25 @@ class InvoiceFormatter {
           <tr class="bb-lg">
                
                <th width="30%">
-                     <p>${AppLocalizations.of(context).translate('products')}</p>
+                     <p>Item</p>
                </th>
                
                <th width="20%">
-                     <p>${AppLocalizations.of(context).translate('quantity')}</p>
+                     <p>Qty</p>
                </th>
                
                <th width="20%">
-                     <p>${AppLocalizations.of(context).translate('unit_price')}</p>
+                     <p>Price</p>
                </th>
                
                <th width="20%">
-                     <p>${AppLocalizations.of(context).translate('sub_total')}</p>
+                     <p>Total</p>
                </th>
                
             </tr>
     ''';
     subTotal = 0.00;
+    subTotalExcludingTax = 0.00;
     for (int i = 0; i < products.length; i++) {
       String serialNumber = (i + 1).toString();
       String productName = products[i]['name'];
@@ -54,6 +52,8 @@ class InvoiceFormatter {
               taxId: products[i]['tax_rate_id']);
       inlineDiscountAmount += inlineAmounts['discountAmount'];
       inlineTaxAmount += inlineAmounts['taxAmount'];
+      
+      // Calculate price including tax (for final total calculation)
       String productPrice = await Helper().calculateTotal(
           taxId: products[i]['tax_rate_id'],
           discountAmount: products[i]['discount_amount'],
@@ -62,6 +62,15 @@ class InvoiceFormatter {
       String totalProductsPrice =
           (products[i]['quantity'] * double.parse(productPrice)).toString();
       subTotal += double.parse(totalProductsPrice);
+      
+      // Calculate price excluding tax (for "Total before VAT" display)
+      String productPriceExcludingTax = await Helper().calculateTotalExcludingTax(
+          discountAmount: products[i]['discount_amount'],
+          discountType: products[i]['discount_type'],
+          unitPrice: products[i]['unit_price']);
+      String totalProductsPriceExcludingTax =
+          (products[i]['quantity'] * double.parse(productPriceExcludingTax)).toString();
+      subTotalExcludingTax += double.parse(totalProductsPriceExcludingTax);
       product = product +
           '''
           <tr class="bb-lg">
@@ -108,7 +117,7 @@ class InvoiceFormatter {
     Map<String, dynamic> allAmounts = {};
     if (discountType == "fixed") {
       discountType = "$symbol $discountAmount";
-      String tAmount = (subTotal - discountAmount).toString();
+      String tAmount = (subTotalExcludingTax - discountAmount).toString();
       allAmounts['taxAmount'] = Helper().formatCurrency(
           (double.parse(tAmount) * (tax / 100)).toStringAsFixed(2));
       allAmounts['totalAmount'] =
@@ -118,8 +127,8 @@ class InvoiceFormatter {
       allAmounts['discountType'] = discountType;
     } else if (discountType == "percentage") {
       discountType = discountAmount.toString() + " %";
-      discountAmount = subTotal * (discountAmount / 100);
-      String tAmount = (subTotal - discountAmount).toString();
+      discountAmount = subTotalExcludingTax * (discountAmount / 100);
+      String tAmount = (subTotalExcludingTax - discountAmount).toString();
       allAmounts['taxAmount'] = Helper().formatCurrency(
           (double.parse(tAmount) * (tax / 100)).toStringAsFixed(2));
       allAmounts['totalAmount'] =
@@ -211,7 +220,7 @@ class InvoiceFormatter {
       var paidAmount = element['amount'];
       if (element['amount'] > 0) {
         payments += '''
-        <div class="flex-box">
+        <div class="flex-box payment-method">
          <p class="width-50 text-left">$method ($sign) ($date) </p>
          <p class="width-50 text-right">$symbol ${Helper().formatCurrency(paidAmount)}</p>
       </div>
@@ -230,7 +239,7 @@ class InvoiceFormatter {
     String totalAmount =
         (double.parse(getAmounts['totalAmount']) + sells[0]['shipping_charges'])
             .toStringAsFixed(2);
-    String sTotal = subTotal.toString();
+    String sTotal = subTotalExcludingTax.toString();
     var totalReceived;
     var returnAmount;
     var dueAmount;
@@ -253,7 +262,7 @@ class InvoiceFormatter {
     if (discountAmount > 0) {
       discountAmount = Helper().formatCurrency(discountAmount);
       discountHtml = '''
-      <div class="flex-box">
+      <div class="flex-box tax-row">
          <p class="width-50 text-left">
             ${AppLocalizations.of(context).translate('discount')} <small>($discountType)</small> :
          </p>
@@ -268,7 +277,7 @@ class InvoiceFormatter {
     if (inlineDiscountAmount > 0) {
       String inlineDiscount = Helper().formatCurrency(inlineDiscountAmount);
       inlineDiscountHtml = '''
-      <div class="flex-box">
+      <div class="flex-box tax-row">
          <p class="width-50 text-left">
             ${AppLocalizations.of(context).translate('discount')} :
          </p>
@@ -282,7 +291,7 @@ class InvoiceFormatter {
     //structure of shippingCharge row
     if (sells[0]['shipping_charges'] >= 0.01) {
       shippingHtml += '''
-      <div class="flex-box">
+      <div class="flex-box tax-row">
          <p class="width-50 text-left">
             ${AppLocalizations.of(context).translate('shipping_charges')}:
          </p>
@@ -296,7 +305,7 @@ class InvoiceFormatter {
     //structure of tax row
     if (taxName != "taxRates") {
       taxHtml = '''
-      <div class="flex-box">
+      <div class="flex-box tax-row">
          <p class="width-50 text-left">
             ${AppLocalizations.of(context).translate('tax')} ($taxName):
          </p>
@@ -311,7 +320,7 @@ class InvoiceFormatter {
     if (inlineTaxAmount > 0) {
       String inlineTax = Helper().formatCurrency(inlineTaxAmount);
       inlineTaxesHtml = '''
-      <div class="flex-box">
+      <div class="flex-box tax-row">
          <p class="width-50 text-left">
             ${AppLocalizations.of(context).translate('tax')} :
          </p>
@@ -326,7 +335,7 @@ class InvoiceFormatter {
     if (dueAmount > 0) {
       dueAmount = Helper().formatCurrency(dueAmount);
       dueHtml = '''
-      <div class="flex-box">
+      <div class="flex-box payment-method">
          <p class="width-50 text-left">
             ${AppLocalizations.of(context).translate('total')} ${AppLocalizations.of(context).translate('due')}
          </p>
@@ -380,9 +389,9 @@ class InvoiceFormatter {
             $businessName
             </span>
             <br>
-            $landmark $city $state $zipCode $country $businessMobile
+            <span class="address-line">$landmark $city $state $zipCode $country $businessMobile</span>
             <br>
-            <b>$taxLabel </b> $taxNumber
+            <span class="address-line"><b>$taxLabel </b> $taxNumber</span>
          </p>
       </div>
       <div class="border-top textbox-info">
@@ -413,9 +422,9 @@ class InvoiceFormatter {
             $products
          </tbody>
       </table>
-      <div class="flex-box">
+      <div class="flex-box subtotal-row">
          <p class="left text-left">
-            <strong>${AppLocalizations.of(context).translate('sub_total')}:</strong>
+            <strong>Total before VAT:</strong>
          </p>
          <p class="width-50 text-right">
             <strong>$symbol ${Helper().formatCurrency(sTotal)}</strong>
@@ -431,7 +440,7 @@ class InvoiceFormatter {
       $taxHtml
       
       $inlineTaxesHtml
-      <div class="flex-box">
+      <div class="flex-box total-final">
          <p class="width-50 text-left">
             <strong>${AppLocalizations.of(context).translate('total')}:</strong>
          </p>
@@ -442,7 +451,7 @@ class InvoiceFormatter {
       <!-- Payments -->
       $payments
       <!-- Total Paid-->
-      <div class="flex-box">
+      <div class="flex-box payment-method">
          <p class="width-50 text-left">
             ${AppLocalizations.of(context).translate('total')} ${AppLocalizations.of(context).translate('paid')}
          </p>
@@ -462,18 +471,82 @@ class InvoiceFormatter {
    
       @media  print {
       * {
-      font-size: 12px;
+      font-size: 16px;
       font-family: 'Times New Roman';
       word-break: break-all;
       }
       .headings{
-      font-size: 16px;
-      font-weight: 700;
+      font-size: 24px;
+      font-weight: 600;
       text-transform: uppercase;
+      text-align: center;
       }
       .sub-headings{
-      font-size: 15px;
+      font-size: 18px;
+      font-weight: 500;
+      }
+      /* Store Header - Business Name */
+      .headings {
+      font-size: 24px;
+      font-weight: 600;
+      text-align: center;
+      }
+      
+      /* Address Lines */
+      .address-line {
+      font-size: 18px;
+      font-weight: 400;
+      text-align: center;
+      }
+      
+      /* Meta Info (Invoice No, Date, etc.) */
+      .textbox-info p, .textbox-info {
+      font-size: 16px;
+      font-weight: 400;
+      text-align: left;
+      }
+      
+      /* Item Lines in Table */
+      .table-f-12 th, .table-f-12 td {
+      font-size: 20px;
+      font-weight: 500;
+      }
+      
+      /* Section Titles */
+      .flex-box p {
+      font-size: 18px;
+      font-weight: 500;
+      }
+      
+      /* Total Before Tax (Sub Total) */
+      .subtotal-row p {
+      font-size: 18px;
+      font-weight: 500;
+      }
+      
+      /* VAT/Tax Rows */
+      .tax-row p {
+      font-size: 16px;
+      font-weight: 400;
+      }
+      
+      /* Total With Tax (Final Total) */
+      .total-final p {
+      font-size: 28px;
       font-weight: 700;
+      }
+      
+      /* Payment Method */
+      .payment-method p {
+      font-size: 18px;
+      font-weight: 400;
+      }
+      
+      /* Footer */
+      .footer-text {
+      font-size: 16px;
+      font-weight: 400;
+      text-align: center;
       }
       .border-top{
       border-top: 1px solid #242424;
