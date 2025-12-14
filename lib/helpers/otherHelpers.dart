@@ -242,11 +242,7 @@ class Helper {
 
   //share invoice
   savePdf(sellId, taxId, context, invoiceNo, {invoice}) async {
-    String _invoice = (invoice != null)
-        ? invoice
-        : await InvoiceFormatter().generateInvoice(sellId, taxId, context);
-    var targetPath = await getTemporaryDirectory();
-    var targetFileName = "invoice_no: ${Random().nextInt(100)}";
+    await getTemporaryDirectory();
 
     // TODO: FlutterHtmlToPdf is deprecated - need to implement PDF generation with printing package
     // var generatedPdfFile = await FlutterHtmlToPdf.convertFromHtmlContent(
