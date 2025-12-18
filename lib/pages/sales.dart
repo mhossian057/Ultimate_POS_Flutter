@@ -205,18 +205,22 @@ class _SalesState extends State<Sales> {
         paymentStatuses.addAll(['paid', 'due', 'partial', 'overdue']);
         selectedPaymentStatus = 'all';
       }
-      setState(() {
-        canViewSell = true;
-      });
+      if (mounted) {
+        setState(() {
+          canViewSell = true;
+        });
+      }
     } else if (await Helper().getPermission("view_own_sell_only")) {
       url = Api().apiUrl + "sell?order_by_date=desc&user_id=$USERID";
       if (paymentStatuses.length < 2) {
         paymentStatuses.addAll(['paid', 'due', 'partial', 'overdue']);
         selectedPaymentStatus = 'all';
       }
-      setState(() {
-        canViewSell = true;
-      });
+      if (mounted) {
+        setState(() {
+          canViewSell = true;
+        });
+      }
     }
   }
 

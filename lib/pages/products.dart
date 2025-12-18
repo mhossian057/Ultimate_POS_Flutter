@@ -1116,13 +1116,17 @@ class _ProductsState extends State<Products> {
 
   setDefaultLocation(defaultLocation) {
     if (defaultLocation != 0) {
-      setState(() {
-        selectedLocationId = defaultLocation;
-      });
+      if (mounted) {
+        setState(() {
+          selectedLocationId = defaultLocation;
+        });
+      }
     } else if (locationListMap.length == 2) {
-      setState(() {
-        selectedLocationId = locationListMap[1]['id'] as int;
-      });
+      if (mounted) {
+        setState(() {
+          selectedLocationId = locationListMap[1]['id'] as int;
+        });
+      }
     }
   }
 
