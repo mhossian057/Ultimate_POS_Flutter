@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
 import '../models/system.dart';
+import '../helpers/http_client.dart';
 import 'api.dart';
 
 class Tax extends Api {
@@ -13,7 +12,7 @@ class Tax extends Api {
       String url = this.apiUrl + "tax";
       var token = await System().getToken();
       var response =
-          await http.get(Uri.parse(url), headers: this.getHeader('$token'));
+          await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader('$token'));
       taxes = jsonDecode(response.body);
       var taxList = taxes['data'];
       System().insert('tax', jsonEncode(taxList));

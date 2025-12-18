@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
 import '../models/system.dart';
+import '../helpers/http_client.dart';
 import 'api.dart';
 
 class ContactPaymentApi extends Api {
@@ -12,7 +11,7 @@ class ContactPaymentApi extends Api {
       var customer;
       String url = this.apiUrl + "contactapi/$customerId";
       var token = await System().getToken();
-      var response = await http.get(
+      var response = await LoggedHttpClient.get(
           //Encode the url
           Uri.parse(url),
           //only accept JSON response
@@ -30,7 +29,7 @@ class ContactPaymentApi extends Api {
       String url = this.apiUrl + "contactapi-payment";
       var token = await System().getToken();
       Map data = payment;
-      var response = await http.post(Uri.parse(url),
+      var response = await LoggedHttpClient.post(Uri.parse(url),
           headers: this.getHeader('$token'), body: jsonEncode(data));
       return response.statusCode;
     } catch (e) {

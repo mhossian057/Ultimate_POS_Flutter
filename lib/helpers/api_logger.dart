@@ -10,7 +10,7 @@ class ApiLogger {
     if (!kDebugMode) return;
     
     final sanitizedHeaders = _sanitizeHeaders(headers);
-    final bodyStr = body != null ? _truncateBody(body.toString()) : 'null';
+    final bodyStr = body != null ? body.toString() : 'null';
     
     print('🌐 API ➡️ $method $url');
     print('📋 Headers: $sanitizedHeaders');
@@ -29,10 +29,9 @@ class ApiLogger {
     
     final emoji = statusCode >= 200 && statusCode < 300 ? '✅' : '❌';
     final durationStr = duration != null ? ' (${duration}ms)' : '';
-    final truncatedBody = _truncateBody(body);
     
     print('🌐 API $emoji $method $url → $statusCode$durationStr');
-    print('📥 Response: $truncatedBody');
+    print('📥 Response: $body');
     print(''); // Empty line for separation
   }
   
@@ -60,9 +59,4 @@ class ApiLogger {
     });
   }
   
-  static String _truncateBody(String body) {
-    const maxLength = 500;
-    if (body.length <= maxLength) return body;
-    return '${body.substring(0, maxLength)}... [truncated]';
-  }
 }

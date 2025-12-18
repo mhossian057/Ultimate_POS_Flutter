@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
 import '../apis/tax.dart';
+import '../helpers/http_client.dart';
 import '../models/system.dart';
 import 'api.dart';
 import 'contact.dart';
@@ -30,7 +29,7 @@ class Brand extends Api {
       String url = this.apiUrl + "brand";
       var token = await System().getToken();
       var response =
-          await http.get(Uri.parse(url), headers: this.getHeader('$token'));
+          await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader('$token'));
       brands = jsonDecode(response.body);
       var brandList = brands['data'];
       System().insert('brand', jsonEncode(brandList));
@@ -49,7 +48,7 @@ class Category extends Api {
       String url = this.apiUrl + "taxonomy?type=product";
       var token = await System().getToken();
       var response =
-      await http.get(Uri.parse(url), headers: this.getHeader('$token'));
+      await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader('$token'));
       taxonomy = jsonDecode(response.body);
       var categoryList = taxonomy['data'];
       System().insert('taxonomy', jsonEncode(categoryList));
@@ -78,7 +77,7 @@ class Payment extends Api {
       String url = this.apiUrl + "payment-methods";
       var token = await System().getToken();
       var response =
-          await http.get(Uri.parse(url), headers: this.getHeader('$token'));
+          await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader('$token'));
       payment = jsonDecode(response.body);
       List paymentList = [];
       payment.forEach((key, value) {
@@ -98,7 +97,7 @@ class Permissions extends Api {
       String url = apiUrl + "user/loggedin";
       var token = await System().getToken();
       var response =
-          await http.get(Uri.parse(url), headers: this.getHeader(token));
+          await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader(token));
       var userDetails = jsonDecode(response.body);
       Map userDetailsMap = userDetails['data'];
       if (userDetailsMap.containsKey('all_permissions')) {
@@ -117,7 +116,7 @@ class Location extends Api {
       String url = this.apiUrl + "business-location";
       var token = await System().getToken();
       var response =
-          await http.get(Uri.parse(url), headers: this.getHeader('$token'));
+          await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader('$token'));
       locations = jsonDecode(response.body);
 
       List? locationList = locations['data'];
@@ -143,7 +142,7 @@ class Business extends Api {
       String url = this.apiUrl + "business-details";
       var token = await System().getToken();
       var response =
-          await http.get(Uri.parse(url), headers: this.getHeader('$token'));
+          await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader('$token'));
       business = jsonDecode(response.body);
       List businessDetails = [business['data']];
       System().insert('business', jsonEncode(businessDetails));
@@ -162,7 +161,7 @@ class ActiveSubscription extends Api {
       String url = this.apiUrl + "active-subscription";
       var token = await System().getToken();
       var response =
-          await http.get(Uri.parse(url), headers: this.getHeader('$token'));
+          await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader('$token'));
       activeSubscription = jsonDecode(response.body);
       List activeSubscriptionDetails = (activeSubscription['data'].isNotEmpty)
           ? [activeSubscription['data']]
@@ -183,7 +182,7 @@ class PaymentAccounts extends Api {
       String url = this.apiUrl + "payment-accounts";
       var token = await System().getToken();
       var response =
-          await http.get(Uri.parse(url), headers: this.getHeader('$token'));
+          await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader('$token'));
       accounts = jsonDecode(response.body);
       List paymentAccounts = accounts['data'];
       System().insert('payment_accounts', jsonEncode(paymentAccounts));

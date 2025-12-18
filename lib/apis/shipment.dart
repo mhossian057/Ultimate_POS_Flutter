@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
 import '../apis/api.dart';
+import '../helpers/http_client.dart';
 import '../models/system.dart';
 
 class ShipmentApi extends Api {
@@ -11,7 +10,7 @@ class ShipmentApi extends Api {
     String url = this.apiUrl + "sell/?start_date=$date&shipping_status=$status";
     var token = await System().getToken();
     var response = [];
-    await http
+    await LoggedHttpClient
         .get(Uri.parse(url), headers: this.getHeader('$token'))
         .then((value) {
       response = jsonDecode(value.body)['data'];
@@ -25,7 +24,7 @@ class ShipmentApi extends Api {
     var token = await System().getToken();
     var body = jsonEncode(data);
     var response;
-    await http
+    await LoggedHttpClient
         .post(Uri.parse(url), headers: this.getHeader('$token'), body: body)
         .then((value) {
       response = jsonDecode(value.body);

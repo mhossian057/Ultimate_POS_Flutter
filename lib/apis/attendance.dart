@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
 import '../apis/api.dart';
+import '../helpers/http_client.dart';
 import '../models/system.dart';
 
 class AttendanceApi extends Api {
@@ -13,7 +12,7 @@ class AttendanceApi extends Api {
     try {
       String url = this.apiUrl + "$endUrl";
       var token = await System().getToken();
-      var response = await http.post(Uri.parse(url),
+      var response = await LoggedHttpClient.post(Uri.parse(url),
           headers: this.getHeader('$token'), body: jsonEncode(data));
       var info = jsonDecode(response.body);
       return info;
@@ -28,7 +27,7 @@ class AttendanceApi extends Api {
       String url = this.apiUrl + "get-attendance/$userId";
       var token = await System().getToken();
       var response =
-          await http.get(Uri.parse(url), headers: this.getHeader('$token'));
+          await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader('$token'));
       var info = jsonDecode(response.body);
       var result = info['data'];
       return result;

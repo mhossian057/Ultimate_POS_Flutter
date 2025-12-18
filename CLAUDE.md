@@ -46,10 +46,65 @@ The app uses SQLite with a custom database provider (`lib/models/database.dart`)
 - **User-specific databases**: Each user gets their own database file (`PosDemo{userId}.db`)
 
 ### API Integration
-- **OAuth2 authentication** with bearer tokens
-- **Base API class** in `lib/apis/api.dart` handles authentication
+- **Base URL**: `https://billmate.gtsoftwares.com/`
+- **OAuth2 authentication** with bearer tokens and client credentials
+- **Base API class** in `lib/apis/api.dart` handles authentication headers
 - **Module-specific APIs** for different business functions
-- **Configuration**: Base URL and API credentials in `config.dart`
+- **Configuration**: Base URL and API credentials in `lib/config.dart:6-9`
+
+#### API Modules & Endpoints
+1. **Authentication** (`api.dart`, `user.dart`)
+   - `POST /oauth/token` - User login
+   - `GET /connector/api/user/loggedin` - User profile & permissions
+
+2. **Sales & POS** (`sell.dart`)
+   - `POST /connector/api/sell` - Create transaction
+   - `PUT /connector/api/sell/{id}` - Update transaction
+   - `DELETE /connector/api/sell/{id}` - Delete transaction
+   - `GET /connector/api/sell/{ids}` - Get specific transactions
+
+3. **Contact Management** (`contact.dart`, `contact_payment.dart`)
+   - `GET /connector/api/contactapi` - Get customers (paginated)
+   - `POST /connector/api/contactapi` - Add customer
+   - `GET /connector/api/contactapi/{id}` - Customer details & dues
+   - `POST /connector/api/contactapi-payment` - Process payments
+
+4. **Business Configuration** (`system.dart`)
+   - `GET /connector/api/business-details` - Business info
+   - `GET /connector/api/business-location` - Locations
+   - `GET /connector/api/payment-methods` - Payment options
+   - `GET /connector/api/brand` - Product brands
+   - `GET /connector/api/taxonomy` - Categories & subcategories
+   - `GET /connector/api/tax` - Tax configurations
+
+5. **Inventory Management** (`variations.dart`)
+   - Product variations and location-based inventory
+
+6. **Expense Management** (`expenses.dart`)
+   - `POST /connector/api/expense` - Create expense
+   - `GET /connector/api/expense-categories` - Expense categories
+
+7. **Field Force** (`field_force.dart`, `attendance.dart`)
+   - `POST /connector/api/field-force/create` - Create visit
+   - `POST /connector/api/clock-in` - Employee check-in
+   - `POST /connector/api/clock-out` - Employee check-out
+   - `GET /connector/api/get-attendance/{userId}` - Attendance records
+
+8. **CRM & Follow-up** (`follow_up.dart`)
+   - `GET /connector/api/crm/follow-ups/{id}` - Follow-up details
+   - `POST /connector/api/crm/follow-ups` - Create/update follow-ups
+   - `POST /connector/api/crm/call-logs` - Sync call logs
+
+9. **Shipping** (`shipment.dart`)
+   - `GET /connector/api/sell/` - Filter by shipping status
+   - `POST /connector/api/update-shipping-status` - Update status
+
+#### API Patterns
+- All APIs use Bearer token authentication from base `Api` class
+- Error handling with try-catch and null returns
+- Local SQLite synchronization for offline functionality
+- Pagination support for large datasets (customers, products)
+- Multi-location business support across endpoints
 
 ### State Management
 - **Provider pattern** for state management

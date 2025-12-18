@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
 import '../apis/api.dart';
+import '../helpers/http_client.dart';
 import '../models/system.dart';
 
 class VariationsApi extends Api {
@@ -12,7 +11,7 @@ class VariationsApi extends Api {
     String url = link;
     String token = await System().getToken();
     var response =
-        await http.get(Uri.parse(url), headers: this.getHeader(token));
+        await LoggedHttpClient.get(Uri.parse(url), headers: this.getHeader(token));
     variations = jsonDecode(response.body);
     List variationList = [];
     variations['data'].forEach((value) {
