@@ -34,7 +34,9 @@ class _ProductsState extends State<Products> {
       gridView = false,
       canAddSell = false,
       canViewProducts = false,
-      usePriceGroup = true;
+      usePriceGroup = true,
+      isLoading = false,
+      isInitialized = false;
 
   int selectedLocationId = 0,
       categoryId = 0,
@@ -86,17 +88,17 @@ class _ProductsState extends State<Products> {
 
   @override
   Future<void> didChangeDependencies() async {
+    if (isInitialized) return;
+    
     argument = ModalRoute.of(context)!.settings.arguments as Map?;
     //Arguments sellId & locationId is send from edit.
     if (argument != null) {
-      Future.delayed(Duration(milliseconds: 200), () {
-        if (this.mounted) {
-          setState(() {
-            selectedLocationId = argument!['locationId'];
-            canChangeLocation = false;
-          });
-        }
-      });
+      if (mounted) {
+        setState(() {
+          selectedLocationId = argument!['locationId'];
+          canChangeLocation = false;
+        });
+      }
     } else {
       canChangeLocation = true;
     }
@@ -106,23 +108,42 @@ class _ProductsState extends State<Products> {
 
   //Set location & product
   setInitDetails(selectedLocationId) async {
-    //check subscription
-    var activeSubscriptionDetails = await System().get('active-subscription');
-    if (activeSubscriptionDetails.length > 0) {
-      setState(() {
-        canMakeSell = true;
+    try {
+      //check subscription
+      var activeSubscriptionDetails = await System().get('active-subscription');
+      if (mounted) {
+        setState(() {
+          canMakeSell = activeSubscriptionDetails.length > 0;
+        });
+      }
+      
+      if (activeSubscriptionDetails.length == 0) {
+        Fluttertoast.showToast(
+            msg: AppLocalizations.of(context).translate('no_subscription_found'));
+        return;
+      }
+      
+      await Helper().getFormattedBusinessDetails().then((value) {
+        symbol = value['symbol'] + ' ';
       });
-    } else {
-      Fluttertoast.showToast(
-          msg: AppLocalizations.of(context).translate('no_subscription_found'));
+      await setDefaultLocation(selectedLocationId);
+      
+      if (mounted) {
+        setState(() {
+          products = [];
+          offset = 0;
+        });
+      }
+      
+      await productList();
+    } catch (e) {
+      print('Error in setInitDetails: $e');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
-    await Helper().getFormattedBusinessDetails().then((value) {
-      symbol = value['symbol'] + ' ';
-    });
-    await setDefaultLocation(selectedLocationId);
-    products = [];
-    offset = 0;
-    productList();
   }
 
   //Fetch permission from database
@@ -155,32 +176,41 @@ class _ProductsState extends State<Products> {
 
   //set product list
   productList() async {
-    offset++;
-    //check last sync, if difference is 10 minutes then sync again.
-    String? lastSync = await System().getProductLastSync();
-    final date2 = DateTime.now();
-    if (lastSync == null ||
-        (date2.difference(DateTime.parse(lastSync)).inMinutes > 10)) {
-      if (await Helper().checkConnectivity()) {
-        await Variations().refresh();
-        await System().insertProductLastSyncDateTimeNow();
-      }
+    if (isLoading) return;
+    
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+      });
     }
 
-    findSellingPriceGroupId(selectedLocationId);
-    await Variations()
-        .get(
-        brandId: brandId,
-            categoryId: categoryId,
-            subCategoryId: subCategoryId,
-            inStock: inStock,
-            locationId: selectedLocationId,
-            searchTerm: searchController.text,
-            offset: offset,
-            byAlphabets: byAlphabets,
-            byPrice: byPrice)
-        .then((element) {
-      element.forEach((product) {
+    try {
+      offset++;
+      //check last sync, if difference is 30 minutes then sync again.
+      String? lastSync = await System().getProductLastSync();
+      final date2 = DateTime.now();
+      if (lastSync == null ||
+          (date2.difference(DateTime.parse(lastSync)).inMinutes > 30)) {
+        if (await Helper().checkConnectivity()) {
+          await Variations().refresh();
+          await System().insertProductLastSyncDateTimeNow();
+        }
+      }
+
+      findSellingPriceGroupId(selectedLocationId);
+      List productData = await Variations().get(
+          brandId: brandId,
+          categoryId: categoryId,
+          subCategoryId: subCategoryId,
+          inStock: inStock,
+          locationId: selectedLocationId,
+          searchTerm: searchController.text,
+          offset: offset,
+          byAlphabets: byAlphabets,
+          byPrice: byPrice);
+
+      List newProducts = [];
+      productData.forEach((product) {
         var price;
         if (product['selling_price_group'] != null) {
           jsonDecode(product['selling_price_group']).forEach((element) {
@@ -189,11 +219,24 @@ class _ProductsState extends State<Products> {
             }
           });
         }
-        setState(() {
-          products.add(ProductModel().product(product, price));
-        });
+        newProducts.add(ProductModel().product(product, price));
       });
-    });
+
+      if (mounted) {
+        setState(() {
+          products.addAll(newProducts);
+          isLoading = false;
+          isInitialized = true;
+        });
+      }
+    } catch (e) {
+      print('Error loading products: $e');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   categoryList() async {
@@ -1001,7 +1044,11 @@ class _ProductsState extends State<Products> {
   }
 
   Widget _productsList() {
-    return (products.length == 0)
+    if (isLoading && products.isEmpty) {
+      return _buildShimmerSkeleton();
+    }
+    
+    return (products.length == 0 && isInitialized)
         ? Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1244,6 +1291,284 @@ class _ProductsState extends State<Products> {
                 },
                 child: Text(AppLocalizations.of(context).translate('yes')))
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildShimmerSkeleton() {
+    return Container(
+      child: (gridView) ? _buildGridShimmer() : _buildListShimmer(),
+    );
+  }
+
+  Widget _buildGridShimmer() {
+    return GridView.builder(
+      padding: EdgeInsets.symmetric(
+          horizontal: MySize.size16!, vertical: MySize.size20!),
+      shrinkWrap: true,
+      physics: ClampingScrollPhysics(),
+      itemCount: 6, // Show 6 skeleton items
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: MySize.size16!,
+        crossAxisSpacing: MySize.size12!,
+        childAspectRatio: 0.8,
+      ),
+      itemBuilder: (context, index) {
+        return _ProductGridShimmer();
+      },
+    );
+  }
+
+  Widget _buildListShimmer() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: ClampingScrollPhysics(),
+      itemCount: 8, // Show 8 skeleton items
+      itemBuilder: (context, index) {
+        return _ProductListShimmer();
+      },
+    );
+  }
+}
+
+class _ProductGridShimmer extends StatefulWidget {
+  @override
+  _ProductGridShimmerState createState() => _ProductGridShimmerState();
+}
+
+class _ProductGridShimmerState extends State<_ProductGridShimmer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _animationController.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ThemeData themeData = Theme.of(context);
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            color: themeData.cardTheme.color,
+            borderRadius: BorderRadius.all(Radius.circular(MySize.size16!)),
+            boxShadow: [
+              BoxShadow(
+                color: themeData.cardTheme.shadowColor!.withAlpha(20),
+                blurRadius: 12,
+                spreadRadius: 2,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          padding: EdgeInsets.all(MySize.size8!),
+          margin: EdgeInsets.symmetric(vertical: MySize.size4!),
+          child: Column(
+            children: <Widget>[
+              Expanded(
+                flex: 4,
+                child: Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(_animation.value * 0.3),
+                    borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(MySize.size16!),
+                        topRight: Radius.circular(MySize.size16!)),
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(
+                      horizontal: MySize.size6!, vertical: MySize.size4!),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Container(
+                        height: 12,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(_animation.value * 0.3),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Container(
+                        height: 10,
+                        width: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(_animation.value * 0.3),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                      ),
+                      Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          Container(
+                            height: 16,
+                            width: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withOpacity(_animation.value * 0.3),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          Container(
+                            height: 14,
+                            width: 30,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withOpacity(_animation.value * 0.3),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ProductListShimmer extends StatefulWidget {
+  @override
+  _ProductListShimmerState createState() => _ProductListShimmerState();
+}
+
+class _ProductListShimmerState extends State<_ProductListShimmer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _animationController.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ThemeData themeData = Theme.of(context);
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            color: themeData.cardTheme.color,
+            borderRadius: BorderRadius.all(Radius.circular(MySize.size16!)),
+            boxShadow: [
+              BoxShadow(
+                color: themeData.cardTheme.shadowColor!.withAlpha(20),
+                blurRadius: 8,
+                spreadRadius: 1,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          margin: EdgeInsets.symmetric(
+              horizontal: MySize.size16!, vertical: MySize.size8!),
+          padding: EdgeInsets.all(MySize.size12!),
+          child: ListTile(
+            leading: Container(
+              width: MySize.size60,
+              height: MySize.size60,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(_animation.value * 0.3),
+                borderRadius: BorderRadius.circular(MySize.size16!),
+              ),
+            ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 14,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(_animation.value * 0.3),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                ),
+                SizedBox(height: 4),
+                Container(
+                  height: 12,
+                  width: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(_animation.value * 0.3),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ],
+            ),
+            trailing: Container(
+              width: MySize.size100,
+              height: MySize.size56,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
+                  Container(
+                    height: 16,
+                    width: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(_animation.value * 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Container(
+                    height: 14,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(_animation.value * 0.3),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );

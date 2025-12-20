@@ -75,7 +75,7 @@ class DbProvider {
     return _database!;
   }
 
-  int currVersion = 6;
+  int currVersion = 7;
 
   //create tables during the creation of the database itself.
   Future<Database> initializeDatabase(loginUserId) async {
@@ -93,6 +93,7 @@ class DbProvider {
         await db.execute(createSellTable);
         await db.execute(createSellLineTable);
         await db.execute(createSellPaymentsTable);
+        await _createIndexes(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -124,8 +125,27 @@ class DbProvider {
               "ALTER TABLE sell_payments ADD COLUMN account_id INTEGER DEFAULT null;");
         }
 
+        if (oldVersion < 7) {
+          await _createIndexes(db);
+        }
+
         db.setVersion(currVersion);
       },
     );
+  }
+
+  //create performance indexes
+  Future<void> _createIndexes(Database db) async {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_variations_category ON variations(category_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_variations_brand ON variations(brand_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_variations_sku ON variations(sub_sku)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_variations_display ON variations(display_name)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_variations_product ON variations(product_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_locations ON product_locations(product_id, location_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_variation_details ON variations_location_details(variation_id, location_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_variation_details_product ON variations_location_details(product_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_sell_lines_variation ON sell_lines(variation_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_sell_location ON sell(location_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_system_key ON system(key)');
   }
 }

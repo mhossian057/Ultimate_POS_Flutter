@@ -81,18 +81,20 @@ class _SalesState extends State<Sales> {
 
   setCustomers() async {
     customerListMap.addAll(await Contact().get());
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   setLocations() async {
     await System().get('location').then((value) {
       value.forEach((element) {
-        setState(() {
-          locationListMap.add({
-            'id': element['id'],
-            'name': element['name'],
+        if (mounted) {
+          setState(() {
+            locationListMap.add({
+              'id': element['id'],
+              'name': element['name'],
+            });
           });
-        });
+        }
       });
     });
     await System().refreshPermissionList().then((value) async {
@@ -404,14 +406,16 @@ class _SalesState extends State<Sales> {
 
   //Retrieve sales list from api
   void setAllSalesList() async {
-    setState(() {
-      if (changeUrl) {
-        allSalesListMap = [];
-        changeUrl = false;
-        showFilter = false;
-      }
-      isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        if (changeUrl) {
+          allSalesListMap = [];
+          changeUrl = false;
+          showFilter = false;
+        }
+        isLoading = false;
+      });
+    }
     final dio = new Dio();
     dio.interceptors.add(ApiLoggerInterceptor());
     var token = await System().getToken();
@@ -1487,9 +1491,11 @@ class _SalesState extends State<Sales> {
             ));
       }).toList(),
       onChanged: (value) async {
-        setState(() {
-          selectedCustomer = jsonDecode(value);
-        });
+        if (mounted) {
+          setState(() {
+            selectedCustomer = jsonDecode(value);
+          });
+        }
         onFilter();
       },
       isExpanded: true,
@@ -1499,9 +1505,11 @@ class _SalesState extends State<Sales> {
   Widget locations() {
     return PopupMenuButton(
         onSelected: (Map<dynamic, dynamic> item) {
-          setState(() {
-            selectedLocation = item;
-          });
+          if (mounted) {
+            setState(() {
+              selectedLocation = item;
+            });
+          }
           onFilter();
         },
         itemBuilder: (BuildContext context) {
@@ -1547,9 +1555,11 @@ class _SalesState extends State<Sales> {
   Widget paymentStatus() {
     return PopupMenuButton(
       onSelected: (String item) {
-        setState(() {
-          selectedPaymentStatus = item;
-        });
+        if (mounted) {
+          setState(() {
+            selectedPaymentStatus = item;
+          });
+        }
         onFilter();
       },
       itemBuilder: (BuildContext context) {

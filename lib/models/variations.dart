@@ -16,12 +16,16 @@ class Variations {
 
   //save variations and variations_locations
   store() async {
-    String? link = Api().apiUrl + "variation?per_page=3000&not_for_selling=0";
-    do {
-      Map response = await VariationsApi().get("$link");
-      List products = await response['products'];
-      final db = await dbProvider.database;
-      Batch batch = db.batch();
+    try {
+      String? link = Api().apiUrl + "variation?per_page=3000&not_for_selling=0";
+      do {
+        Map response = await VariationsApi().get("$link");
+        if (response == null || !response.containsKey('products')) {
+          throw Exception('Invalid API response');
+        }
+        List products = await response['products'];
+        final db = await dbProvider.database;
+        Batch batch = db.batch();
       List processedProductIds = [];
 
       //save variations
@@ -86,10 +90,14 @@ class Variations {
           });
         }
         batch.insert('variations', tempProduct);
-      });
-      link = response['nextLink'];
-      await batch.commit(noResult: true);
-    } while (link != null);
+        });
+        link = response['nextLink'];
+        await batch.commit(noResult: true);
+      } while (link != null);
+    } catch (e) {
+      print('Error storing variations: $e');
+      throw e;
+    }
   }
 
   //get all variations
@@ -182,13 +190,17 @@ class Variations {
 
 //  refresh variations and variations_locations
   refresh() async {
-    var count = await checkProductTable();
-    if (count > 0) {
-      deleteVariationDetails().then((value) async {
+    try {
+      var count = await checkProductTable();
+      if (count > 0) {
+        await deleteVariationDetails();
         await store();
-      });
-    } else {
-      await store();
+      } else {
+        await store();
+      }
+    } catch (e) {
+      print('Error refreshing variations: $e');
+      throw e;
     }
   }
 
