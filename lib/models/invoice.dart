@@ -27,11 +27,11 @@ class InvoiceFormatter {
                      <p>Qty</p>
                </th>
                
-               <th width="20%">
+               <th width="20%" class="text-right">
                      <p>Price</p>
                </th>
                
-               <th width="20%">
+               <th width="20%" class="text-right">
                      <p>Total</p>
                </th>
                
@@ -42,7 +42,6 @@ class InvoiceFormatter {
     for (int i = 0; i < products.length; i++) {
       String serialNumber = (i + 1).toString();
       String productName = products[i]['name'];
-      String productSku = products[i]['sub_sku'];
       String productQuantity = products[i]['quantity'].toString();
       Map<String, dynamic> inlineAmounts = await Helper()
           .calculateTaxAndDiscount(
@@ -76,7 +75,7 @@ class InvoiceFormatter {
           <tr class="bb-lg">
           
                <td width="30%">               
-                     <p>$productName, $productSku</p>
+                     <p>$productName</p>
                </td>
                
                
@@ -85,11 +84,11 @@ class InvoiceFormatter {
                </td>
                
                
-               <td width="20%">               
+               <td width="20%" class="text-right">               
                      <p>${Helper().formatCurrency(productPrice)}</p>
                </td>
                
-               <td width="20%">               
+               <td width="20%" class="text-right">               
                      <p>${Helper().formatCurrency(totalProductsPrice)}</p>
                </td>
                
@@ -221,8 +220,11 @@ class InvoiceFormatter {
       if (element['amount'] > 0) {
         payments += '''
         <div class="flex-box payment-method">
-         <p class="width-50 text-left">$method ($sign) ($date) </p>
-         <p class="width-50 text-right">$symbol ${Helper().formatCurrency(paidAmount)}</p>
+         <p class="payment-method-info text-left">
+           <span class="payment-method-name">$method ($sign)</span><br>
+           <small class="payment-date">$date</small>
+         </p>
+         <p class="payment-amount text-right">$symbol ${Helper().formatCurrency(paidAmount)}</p>
       </div>
       ''';
       }
@@ -423,10 +425,10 @@ class InvoiceFormatter {
          </tbody>
       </table>
       <div class="flex-box subtotal-row">
-         <p class="left text-left">
+         <p class="subtotal-label text-left">
             <strong>Total before VAT:</strong>
          </p>
-         <p class="width-50 text-right">
+         <p class="subtotal-amount text-right">
             <strong>$symbol ${Helper().formatCurrency(sTotal)}</strong>
          </p>
       </div>
@@ -510,6 +512,18 @@ class InvoiceFormatter {
       .table-f-12 th, .table-f-12 td {
       font-size: 20px;
       font-weight: 500;
+      }
+      
+      /* Ensure monetary columns are right-aligned in print */
+      .table-f-12 th.text-right,
+      .table-f-12 td.text-right,
+      .text-right {
+      text-align: right !important;
+      }
+      .table-f-12 th.text-right p,
+      .table-f-12 td.text-right p,
+      .text-right p {
+      text-align: right !important;
       }
       
       /* Section Titles */
@@ -635,6 +649,43 @@ class InvoiceFormatter {
       .textbox-info p {
       margin-bottom: 0px
       }
+      
+      /* Thermal printer optimizations */
+      .subtotal-label {
+      width: 60% !important;
+      white-space: normal !important;
+      word-wrap: break-word;
+      }
+      .subtotal-amount {
+      width: 40% !important;
+      white-space: nowrap;
+      }
+      .payment-method-info {
+      width: 60% !important;
+      white-space: normal !important;
+      line-height: 1.2;
+      }
+      .payment-amount {
+      width: 40% !important;
+      white-space: nowrap;
+      }
+      .payment-method-name {
+      font-weight: 500;
+      }
+      .payment-date {
+      font-size: 12px;
+      color: #666;
+      }
+      
+      /* Ensure all monetary values are right-aligned */
+      .text-right {
+      text-align: right !important;
+      }
+      .text-right p {
+      text-align: right !important;
+      margin: 0;
+      }
+      
       .flex-box {
       display: flex;
       width: 100%;
@@ -648,11 +699,40 @@ class InvoiceFormatter {
       font-size: 12px;
       word-break: break-word;
       }
+      
+      /* Table monetary column alignment */
+      .table-f-12 th.text-right,
+      .table-f-12 td.text-right {
+      text-align: right !important;
+      }
+      .table-f-12 th.text-right p,
+      .table-f-12 td.text-right p {
+      text-align: right !important;
+      margin: 0;
+      }
       .bw {
       word-break: break-word;
       }
       .bb-lg {
       border-bottom: 1px solid lightgray;
+      }
+      
+      /* Extra optimizations for very narrow screens (56mm thermal printers) */
+      @media print and (max-width: 58mm) {
+        .subtotal-label, .payment-method-info {
+          width: 65% !important;
+          font-size: 14px;
+        }
+        .subtotal-amount, .payment-amount {
+          width: 35% !important;
+          font-size: 14px;
+        }
+        .payment-date {
+          font-size: 10px;
+        }
+        .flex-box p {
+          font-size: 14px;
+        }
       }
    </style>
 </section>

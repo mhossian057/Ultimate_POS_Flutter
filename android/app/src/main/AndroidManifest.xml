@@ -16,7 +16,7 @@
     <application
         android:name="${applicationName}"
         android:label="BillMate"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true">
 
         <!-- Place your Google Map API KEY here at value -->

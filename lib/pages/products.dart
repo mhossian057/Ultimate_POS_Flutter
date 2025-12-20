@@ -1,14 +1,12 @@
 import 'dart:convert';
 
 import 'package:badges/badges.dart' as badges;
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
 import '../helpers/AppTheme.dart';
 import '../helpers/SizeConfig.dart';
-import '../helpers/generators.dart';
 import '../helpers/otherHelpers.dart';
 import '../locale/MyLocalizations.dart';
 import '../models/product_model.dart';
@@ -16,6 +14,10 @@ import '../models/sell.dart';
 import '../models/system.dart';
 import '../models/variations.dart';
 import 'elements.dart';
+import 'widgets/product_grid_widget.dart';
+import 'widgets/product_list_widget.dart';
+import 'widgets/product_shimmer_widgets.dart';
+import 'widgets/products_filter_drawer.dart';
 
 class Products extends StatefulWidget {
   @override
@@ -24,8 +26,9 @@ class Products extends StatefulWidget {
 
 class _ProductsState extends State<Products> {
   List products = [];
-  static int themeType = 1;
-  ThemeData themeData = AppTheme.getThemeFromThemeMode(themeType);
+  ThemeData themeData = AppTheme.getThemeFromThemeMode(1);
+  
+  // State flags
   bool changeLocation = false,
       changePriceGroup = false,
       canChangeLocation = true,
@@ -36,8 +39,10 @@ class _ProductsState extends State<Products> {
       canViewProducts = false,
       usePriceGroup = true,
       isLoading = false,
-      isInitialized = false;
+      isInitialized = false,
+      isLoadingPermissions = true;
 
+  // IDs and counters
   int selectedLocationId = 0,
       categoryId = 0,
       subCategoryId = 0,
@@ -47,10 +52,12 @@ class _ProductsState extends State<Products> {
       offset = 0;
   int? byAlphabets, byPrice;
 
+  // Dropdown menu items
   List<DropdownMenuItem<int>> _categoryMenuItems = [],
       _subCategoryMenuItems = [],
       _brandsMenuItems = [];
   List<DropdownMenuItem<bool>> _priceGroupMenuItems = [];
+  
   Map? argument;
   List<Map<String, dynamic>> locationListMap = [
     {'id': 0, 'name': 'set location', 'selling_price_group_id': 0}
@@ -91,7 +98,6 @@ class _ProductsState extends State<Products> {
     if (isInitialized) return;
     
     argument = ModalRoute.of(context)!.settings.arguments as Map?;
-    //Arguments sellId & locationId is send from edit.
     if (argument != null) {
       if (mounted) {
         setState(() {
@@ -109,7 +115,6 @@ class _ProductsState extends State<Products> {
   //Set location & product
   setInitDetails(selectedLocationId) async {
     try {
-      //check subscription
       var activeSubscriptionDetails = await System().get('active-subscription');
       if (mounted) {
         setState(() {
@@ -148,12 +153,293 @@ class _ProductsState extends State<Products> {
 
   //Fetch permission from database
   getPermission() async {
-    if (await Helper().getPermission("direct_sell.access")) {
-      canAddSell = true;
+    bool directSellPermission = await Helper().getPermission("direct_sell.access");
+    bool productViewPermission = await Helper().getPermission("product.view");
+    
+    if (mounted) {
+      setState(() {
+        canAddSell = directSellPermission;
+        canViewProducts = productViewPermission;
+        isLoadingPermissions = false;
+      });
     }
-    if (await Helper().getPermission("product.view")) {
-      canViewProducts = true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    themeData = Theme.of(context);
+
+    return SafeArea(
+      child: Scaffold(
+        key: _scaffoldKey,
+        resizeToAvoidBottomInset: false,
+        backgroundColor: themeData.colorScheme.surface,
+        endDrawer: _filterDrawer(),
+        appBar: _buildAppBar(),
+        body: _buildBody(),
+        bottomNavigationBar: Visibility(
+            visible: argument == null,
+            child: posBottomBar('products', context)),
+      ),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      elevation: 0,
+      title: Text(AppLocalizations.of(context).translate('products'),
+          style: AppTheme.getTextStyle(themeData.textTheme.headlineSmall,
+              fontWeight: 600)),
+      leading: null,
+      actions: <Widget>[
+        locations(),
+        _buildCartButton(),
+      ],
+    );
+  }
+
+  Widget _buildBody() {
+    if (isLoadingPermissions) {
+      return Center(
+        child: CircularProgressIndicator(),
+      );
     }
+    
+    return (canViewProducts)
+        ? ListView(
+            physics: ClampingScrollPhysics(),
+            controller: _scrollController,
+            padding: EdgeInsets.all(0),
+            children: [
+              Visibility(
+                  visible: (selectedLocationId != 0),
+                  child: filter(_scaffoldKey)),
+              (selectedLocationId == 0) ? _buildLocationPrompt() : _productsList(),
+            ],
+          )
+        : Center(
+            child: Text(
+              AppLocalizations.of(context).translate('unauthorised'),
+              style: TextStyle(color: Colors.black),
+            ),
+          );
+  }
+
+  Widget _buildLocationPrompt() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.location_on),
+          Text(AppLocalizations.of(context).translate('please_set_a_location')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCartButton() {
+    return badges.Badge(
+      badgeStyle: badges.BadgeStyle(
+        badgeColor: themeData.colorScheme.error,
+        shape: badges.BadgeShape.circle,
+        borderRadius: BorderRadius.circular(MySize.size20!),
+      ),
+      position: badges.BadgePosition.topStart(start: 5.0, top: 5.0),
+      badgeContent: FutureBuilder(
+          future: (argument != null && argument!['sellId'] != null)
+              ? getCartItemCount(sellId: argument!['sellId'])
+              : getCartItemCount(isCompleted: 0),
+          builder: (context, AsyncSnapshot<String> snapshot) {
+            return Center(
+              child: Text(snapshot.hasData ? '${snapshot.data}' : "0",
+                  style: TextStyle(color: Colors.white)),
+            );
+          }),
+      child: IconButton(
+          icon: Icon(Icons.shopping_cart),
+          onPressed: _onCartPressed),
+    );
+  }
+
+  void _onCartPressed() {
+    if (argument != null) {
+      Navigator.pushReplacementNamed(context, '/cart',
+          arguments: Helper().argument(
+              locId: argument!['locationId'], sellId: argument!['sellId']));
+    } else {
+      if (selectedLocationId != 0 && cartCount > 0) {
+        Navigator.pushNamed(context, '/cart',
+            arguments: Helper().argument(locId: selectedLocationId));
+      }
+      if (cartCount == 0) {
+        Fluttertoast.showToast(
+            msg: AppLocalizations.of(context).translate('no_items_added_to_cart'));
+      }
+    }
+  }
+
+  Widget _productsList() {
+    if (isLoading && products.isEmpty) {
+      return _buildShimmerSkeleton();
+    }
+    
+    return (products.length == 0 && isInitialized)
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.hourglass_empty),
+                Text(AppLocalizations.of(context).translate('no_products_found')),
+              ],
+            ),
+          )
+        : Container(
+            child: (gridView) ? _buildGridView() : _buildListView(),
+          );
+  }
+
+  Widget _buildShimmerSkeleton() {
+    return Container(
+      child: (gridView) ? _buildGridShimmer() : _buildListShimmer(),
+    );
+  }
+
+  Widget _buildGridShimmer() {
+    return GridView.builder(
+      padding: EdgeInsets.symmetric(
+          horizontal: MySize.size16!, vertical: MySize.size20!),
+      shrinkWrap: true,
+      physics: ClampingScrollPhysics(),
+      itemCount: 6,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: MySize.size16!,
+        crossAxisSpacing: MySize.size12!,
+        childAspectRatio: 0.8,
+      ),
+      itemBuilder: (context, index) => ProductGridShimmer(),
+    );
+  }
+
+  Widget _buildListShimmer() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: ClampingScrollPhysics(),
+      itemCount: 8,
+      itemBuilder: (context, index) => ProductListShimmer(),
+    );
+  }
+
+  Widget _buildGridView() {
+    return GridView.builder(
+      padding: EdgeInsets.symmetric(
+          horizontal: MySize.size16!, vertical: MySize.size20!),
+      shrinkWrap: true,
+      physics: ClampingScrollPhysics(),
+      itemCount: products.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: MySize.size16!,
+        crossAxisSpacing: MySize.size12!,
+        childAspectRatio: 0.8,
+      ),
+      itemBuilder: (context, index) => ProductGridWidget(
+        name: products[index]['display_name'],
+        image: products[index]['product_image_url'],
+        qtyAvailable: (products[index]['enable_stock'] != 0)
+            ? products[index]['stock_available'].toString()
+            : '-',
+        price: double.parse(products[index]['unit_price'].toString()),
+        symbol: symbol,
+        onTap: () => onTapProduct(index),
+      ),
+    );
+  }
+
+  Widget _buildListView() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: ClampingScrollPhysics(),
+      itemCount: products.length,
+      itemBuilder: (context, index) => ProductListWidget(
+        name: products[index]['display_name'],
+        image: products[index]['product_image_url'],
+        qtyAvailable: (products[index]['enable_stock'] != 0)
+            ? products[index]['stock_available'].toString()
+            : '-',
+        price: double.parse(products[index]['unit_price'].toString()),
+        symbol: symbol,
+        onTap: () => onTapProduct(index),
+      ),
+    );
+  }
+
+  Widget _filterDrawer() {
+    return ProductsFilterDrawer(
+      themeData: themeData,
+      byAlphabets: byAlphabets,
+      byPrice: byPrice,
+      inStock: inStock,
+      categoryId: categoryId,
+      subCategoryId: subCategoryId,
+      brandId: brandId,
+      usePriceGroup: usePriceGroup,
+      categoryMenuItems: _categoryMenuItems,
+      subCategoryMenuItems: _subCategoryMenuItems,
+      brandsMenuItems: _brandsMenuItems,
+      priceGroupMenuItems: _priceGroupMenuItems,
+      onAlphabetSort: (value) {
+        setState(() {
+          byAlphabets = value;
+        });
+        products = [];
+        offset = 0;
+        productList();
+      },
+      onPriceSort: (value) {
+        setState(() {
+          byPrice = value;
+        });
+        products = [];
+        offset = 0;
+        productList();
+      },
+      onInStockChange: (value) {
+        setState(() {
+          inStock = value ?? true;
+        });
+        products = [];
+        offset = 0;
+        productList();
+      },
+      onCategoryChange: (value) {
+        setState(() {
+          subCategoryId = 0;
+          categoryId = value!;
+          subCategoryList(categoryId);
+        });
+        products = [];
+        offset = 0;
+        productList();
+      },
+      onSubCategoryChange: (value) {
+        setState(() {
+          subCategoryId = value!;
+        });
+        products = [];
+        offset = 0;
+        productList();
+      },
+      onBrandChange: (value) {
+        setState(() {
+          brandId = value!;
+        });
+        products = [];
+        offset = 0;
+        productList();
+      },
+      onPriceGroupChange: _showCartResetDialogForPriceGroup,
+    );
   }
 
   //set selling Price Group Id
@@ -239,6 +525,42 @@ class _ProductsState extends State<Products> {
     }
   }
 
+  Future<String> getCartItemCount({isCompleted, sellId}) async {
+    var counts =
+        await Sell().cartItemCount(isCompleted: isCompleted, sellId: sellId);
+    setState(() {
+      cartCount = int.parse(counts);
+    });
+    return counts;
+  }
+
+  //onTap product
+  onTapProduct(int index) async {
+    if (canAddSell) {
+      if (canMakeSell) {
+        if (products[index]['stock_available'] > 0) {
+          Fluttertoast.showToast(
+              msg: AppLocalizations.of(context).translate('added_to_cart'));
+          await Sell().addToCart(
+              products[index], argument != null ? argument!['sellId'] : null);
+          if (argument != null) {
+            selectedLocationId = argument!['locationId'];
+          }
+        } else {
+          Fluttertoast.showToast(
+              msg: "${AppLocalizations.of(context).translate("out_of_stock")}");
+        }
+      } else {
+        Fluttertoast.showToast(
+            msg:
+                "${AppLocalizations.of(context).translate("no_sells_permission")}");
+      }
+    } else {
+      Fluttertoast.showToast(
+          msg: AppLocalizations.of(context).translate('no_subscription_found'));
+    }
+  }
+
   categoryList() async {
     List categories = await System().getCategories();
 
@@ -299,6 +621,23 @@ class _ProductsState extends State<Products> {
     }
   }
 
+  setLocationMap() async {
+    await System().get('location').then((value) async {
+      value.forEach((element) {
+        if (element['is_active'].toString() == '1') {
+          setState(() {
+            locationListMap.add({
+              'id': element['id'],
+              'name': element['name'],
+              'selling_price_group_id': element['selling_price_group_id']
+            });
+          });
+        }
+      });
+      await priceGroupList();
+    });
+  }
+
   priceGroupList() async {
     setState(() {
       _priceGroupMenuItems = [];
@@ -325,485 +664,80 @@ class _ProductsState extends State<Products> {
     });
   }
 
-  Future<String> getCartItemCount({isCompleted, sellId}) async {
-    var counts =
-        await Sell().cartItemCount(isCompleted: isCompleted, sellId: sellId);
-    setState(() {
-      cartCount = int.parse(counts);
-    });
-    return counts;
+  setDefaultLocation(defaultLocation) {
+    if (defaultLocation != 0) {
+      if (mounted) {
+        setState(() {
+          selectedLocationId = defaultLocation;
+        });
+      }
+    } else if (locationListMap.length == 2) {
+      if (mounted) {
+        setState(() {
+          selectedLocationId = locationListMap[1]['id'] as int;
+        });
+      }
+    }
   }
 
-  double findAspectRatio(double width) {
-    //Logic for aspect ratio of grid view
-    return (width / 2 - MySize.size24!) / ((width / 2 - MySize.size24!) + 60);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    themeData = Theme.of(context);
-
-    return SafeArea(
-      child: Scaffold(
-        key: _scaffoldKey,
-        resizeToAvoidBottomInset: false,
-        backgroundColor: themeData.colorScheme.surface,
-        endDrawer: _filterDrawer(),
-        appBar: AppBar(
-          elevation: 0,
-          title: Text(AppLocalizations.of(context).translate('products'),
-              style: AppTheme.getTextStyle(themeData.textTheme.headlineSmall,
-                  fontWeight: 600)),
-          leading: null,
-          actions: <Widget>[
-            locations(),
-            badges.Badge(
-              badgeStyle: badges.BadgeStyle(
-                badgeColor: themeData.colorScheme.error,
-                shape: badges.BadgeShape.circle,
-                borderRadius: BorderRadius.circular(MySize.size20!),
-              ),
-              position: badges.BadgePosition.topStart(start: 5.0, top: 5.0),
-              badgeContent: FutureBuilder(
-                  future: (argument != null && argument!['sellId'] != null)
-                      ? getCartItemCount(sellId: argument!['sellId'])
-                      : getCartItemCount(isCompleted: 0),
-                  builder: (context, AsyncSnapshot<String> snapshot) {
-                    if (snapshot.hasData) {
-                      return Center(
-                        child: Text('${snapshot.data}',
-                            style: TextStyle(color: Colors.white)),
-                      );
-                    } else
-                      return Center(
-                        child: Text("0", style: TextStyle(color: Colors.white)),
-                      );
-                  }),
-              child: IconButton(
-                  icon: Icon(Icons.shopping_cart),
-                  onPressed: () {
-                    if (argument != null) {
-                      Navigator.pushReplacementNamed(context, '/cart',
-                          arguments: Helper().argument(
-                              locId: argument!['locationId'],
-                              sellId: argument!['sellId']));
-                    } else {
-                      if (selectedLocationId != 0 && cartCount > 0) {
-                        Navigator.pushNamed(context, '/cart',
-                            arguments:
-                                Helper().argument(locId: selectedLocationId));
-                      }
-
-                      if (cartCount == 0) {
-                        Fluttertoast.showToast(
-                            msg: AppLocalizations.of(context)
-                                .translate('no_items_added_to_cart'));
-                      }
-                    }
-                  }),
-            )
-          ],
-        ),
-        body: (canViewProducts)
-            ? ListView(
-                physics: ClampingScrollPhysics(),
-                controller: _scrollController,
-                padding: EdgeInsets.all(0),
-                children: [
-                  Visibility(
-                      visible: (selectedLocationId != 0),
-                      child: filter(
-                        _scaffoldKey,
-                      )),
-                  (selectedLocationId == 0)
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.location_on),
-                              Text(AppLocalizations.of(context)
-                                  .translate('please_set_a_location')),
-                            ],
-                          ),
-                        )
-                      : _productsList(),
-                ],
-              )
-            : Center(
-                child: Text(
-                  AppLocalizations.of(context).translate('unauthorised'),
-                  style: TextStyle(color: Colors.black),
-                ),
-              ),
-        bottomNavigationBar: Visibility(
-            visible: argument == null,
-            child: posBottomBar('products', context)),
-      ),
+  Widget locations() {
+    return DropdownButtonHideUnderline(
+      child: DropdownButton(
+          dropdownColor: themeData.colorScheme.surface,
+          icon: Icon(Icons.arrow_drop_down),
+          value: selectedLocationId,
+          items: locationListMap.map<DropdownMenuItem<int>>((Map value) {
+            return DropdownMenuItem<int>(
+                value: value['id'],
+                child: SizedBox(
+                  width: MySize.screenWidth! * 0.4,
+                  child: Text('${value['name']}',
+                      softWrap: true,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
+                      style: TextStyle(fontSize: 15)),
+                ));
+          }).toList(),
+          onTap: () {
+            if (locationListMap.length <= 2) {
+              canChangeLocation = false;
+            }
+          },
+          onChanged: (int? newValue) async {
+            if (canChangeLocation) {
+              if (selectedLocationId == newValue) {
+                changeLocation = false;
+              } else if (selectedLocationId != 0) {
+                await _showCartResetDialogForLocation();
+                await priceGroupList();
+              } else {
+                changeLocation = true;
+                await priceGroupList();
+              }
+              setState(() {
+                if (changeLocation) {
+                  Sell().resetCart();
+                  selectedLocationId = newValue!;
+                  brandId = 0;
+                  categoryId = 0;
+                  searchController.clear();
+                  inStock = true;
+                  cartCount = 0;
+                  products = [];
+                  offset = 0;
+                  productList();
+                }
+              });
+            } else {
+              Fluttertoast.showToast(
+                  msg: AppLocalizations.of(context)
+                      .translate('cannot_change_location'));
+            }
+          }),
     );
   }
 
-  Widget _filterDrawer() {
-    return Container(
-      width: MediaQuery.of(context).size.width * 0.8,
-      padding: EdgeInsets.only(bottom: MySize.size14!),
-      color: themeData.colorScheme.surface,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              themeData.colorScheme.surface,
-              themeData.colorScheme.surface.withOpacity(0.95),
-            ],
-          ),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-            Container(
-              padding:
-                  EdgeInsets.only(top: MySize.size24!, bottom: MySize.size24!),
-              alignment: Alignment.center,
-              child: Center(
-                child: Text(
-                  AppLocalizations.of(context).translate('sort'),
-                  style: AppTheme.getTextStyle(themeData.textTheme.titleMedium,
-                      fontWeight: 700, color: themeData.colorScheme.primary),
-                ),
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    InkWell(
-                      onTap: () async {
-                        setState(() {
-                          if (byAlphabets == null) {
-                            byAlphabets = 0;
-                          } else if (byAlphabets == 0) {
-                            byAlphabets = 1;
-                          } else {
-                            byAlphabets = null;
-                          }
-                        });
-                        products = [];
-                        offset = 0;
-                        productList();
-                      },
-                      child: Container(
-                        margin: EdgeInsets.only(left: MySize.size16!),
-                        decoration: BoxDecoration(
-                          color: themeData.colorScheme.surface,
-                          borderRadius:
-                              BorderRadius.all(Radius.circular(MySize.size16!)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: themeData.cardTheme.shadowColor!
-                                  .withAlpha(48),
-                              blurRadius: (byAlphabets != null) ? 5 : 0,
-                              offset: (byAlphabets != null)
-                                  ? Offset(3, 3)
-                                  : Offset(0, 0),
-                            )
-                          ],
-                          // : null,
-                        ),
-                        padding: EdgeInsets.all(MySize.size12!),
-                        child: Row(
-                          children: [
-                            Text(
-                              "A",
-                              style: AppTheme.getTextStyle(
-                                  themeData.textTheme.titleMedium,
-                                  fontWeight: 700,
-                                  color: (byAlphabets != null)
-                                      ? themeData.colorScheme.primary
-                                      : Colors.grey),
-                            ),
-                            Icon(
-                              (byAlphabets == 1)
-                                  ? MdiIcons.arrowLeftBold
-                                  : MdiIcons.arrowRightBold,
-                              color: (byAlphabets != null)
-                                  ? themeData.colorScheme.primary
-                                  : Colors.grey,
-                              size: 22,
-                            ),
-                            Text(
-                              "Z",
-                              style: AppTheme.getTextStyle(
-                                  themeData.textTheme.titleMedium,
-                                  fontWeight: 700,
-                                  color: (byAlphabets != null)
-                                      ? themeData.colorScheme.primary
-                                      : Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    InkWell(
-                      onTap: () async {
-                        setState(() {
-                          if (byPrice == null) {
-                            byPrice = 0;
-                          } else if (byPrice == 0) {
-                            byPrice = 1;
-                          } else {
-                            byPrice = null;
-                          }
-                        });
-                        products = [];
-                        offset = 0;
-                        productList();
-                      },
-                      child: Container(
-                        margin: EdgeInsets.only(left: MySize.size16!),
-                        decoration: BoxDecoration(
-                          color: themeData.colorScheme.surface,
-                          borderRadius:
-                              BorderRadius.all(Radius.circular(MySize.size16!)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: themeData.cardTheme.shadowColor!
-                                  .withAlpha(48),
-                              blurRadius: (byPrice != null) ? 5 : 0,
-                              offset: (byPrice != null)
-                                  ? Offset(3, 3)
-                                  : Offset(0, 0),
-                            )
-                          ],
-                          // : null,
-                        ),
-                        padding: EdgeInsets.all(MySize.size12!),
-                        child: Row(
-                          children: [
-                            Text(
-                              AppLocalizations.of(context).translate('price'),
-                              style: AppTheme.getTextStyle(
-                                  themeData.textTheme.titleMedium,
-                                  fontWeight: 700,
-                                  color: (byPrice != null)
-                                      ? themeData.colorScheme.primary
-                                      : Colors.grey),
-                            ),
-                            Icon(
-                              (byPrice == 1)
-                                  ? MdiIcons.arrowDownBold
-                                  : MdiIcons.arrowUpBold,
-                              color: (byPrice != null)
-                                  ? themeData.colorScheme.primary
-                                  : Colors.grey,
-                              size: 22,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                Divider(),
-              ],
-            ),
-            Container(
-              alignment: Alignment.center,
-              child: Center(
-                child: Text(
-                  AppLocalizations.of(context).translate('filter'),
-                  style: AppTheme.getTextStyle(themeData.textTheme.titleMedium,
-                      fontWeight: 700, color: themeData.colorScheme.primary),
-                ),
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Container(
-                    padding: EdgeInsets.only(
-                        left: MySize.size16!, right: MySize.size16!),
-                    child: CheckboxListTile(
-                      title: Text(
-                          AppLocalizations.of(context).translate('in_stock')),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      value: inStock,
-                      onChanged: (newValue) {
-                        setState(() {
-                          inStock = newValue!;
-                        });
-                        products = [];
-                        offset = 0;
-                        productList();
-                      },
-                    )),
-                Divider(),
-                Container(
-                  padding: EdgeInsets.only(
-                      left: MySize.size16!,
-                      right: MySize.size16!,
-                      top: MySize.size16!),
-                  child: Text(
-                    AppLocalizations.of(context).translate('categories'),
-                    style: AppTheme.getTextStyle(themeData.textTheme.bodyLarge,
-                        fontWeight: 600, letterSpacing: 0),
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.only(
-                      left: MySize.size16!,
-                      right: MySize.size16!,
-                      top: MySize.size8!),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton(
-                        isExpanded: true,
-                        dropdownColor: themeData.colorScheme.surface,
-                        icon: Icon(
-                          Icons.arrow_drop_down,
-                        ),
-                        value: categoryId,
-                        items: _categoryMenuItems,
-                        onChanged: (int? newValue) {
-                          setState(() {
-                            subCategoryId = 0;
-                            categoryId = newValue!;
-                            subCategoryList(categoryId);
-                          });
-
-                          products = [];
-                          offset = 0;
-                          productList();
-                        }),
-                  ),
-                ),
-                Divider(),
-                Container(
-                  padding: EdgeInsets.only(
-                      left: MySize.size16!,
-                      right: MySize.size16!,
-                      top: MySize.size16!),
-                  child: Text(
-                    AppLocalizations.of(context).translate('sub_categories'),
-                    style: AppTheme.getTextStyle(themeData.textTheme.bodyLarge,
-                        fontWeight: 600, letterSpacing: 0),
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.only(
-                      left: MySize.size16!,
-                      right: MySize.size16!,
-                      top: MySize.size8!),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton(
-                        isExpanded: true,
-                        dropdownColor: themeData.colorScheme.surface,
-                        icon: Icon(
-                          Icons.arrow_drop_down,
-                        ),
-                        value: subCategoryId,
-                        items: _subCategoryMenuItems,
-                        onChanged: (int? newValue) {
-                          setState(() {
-                            subCategoryId = newValue!;
-                          });
-
-                          products = [];
-                          offset = 0;
-                          productList();
-                        }),
-                  ),
-                ),
-                Divider(),
-                Container(
-                  padding: EdgeInsets.only(
-                      left: MySize.size16!,
-                      right: MySize.size16!,
-                      top: MySize.size16!),
-                  child: Text(
-                    AppLocalizations.of(context).translate('brands'),
-                    style: AppTheme.getTextStyle(themeData.textTheme.bodyLarge,
-                        fontWeight: 600, letterSpacing: 0),
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.only(
-                      left: MySize.size16!, right: MySize.size16!, top: 0),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton(
-                        isExpanded: true,
-                        dropdownColor: themeData.colorScheme.surface,
-                        icon: Icon(
-                          Icons.arrow_drop_down,
-                        ),
-                        value: brandId,
-                        items: _brandsMenuItems,
-                        onChanged: (int? newValue) {
-                          setState(() {
-                            brandId = newValue!;
-                          });
-                          products = [];
-                          offset = 0;
-                          productList();
-                        }),
-                  ),
-                ),
-                Divider()
-              ],
-            ),
-            Container(
-              alignment: Alignment.center,
-              child: Center(
-                child: Text(
-                  AppLocalizations.of(context).translate('group_prices'),
-                  style: AppTheme.getTextStyle(themeData.textTheme.titleMedium,
-                      fontWeight: 700, color: themeData.colorScheme.primary),
-                ),
-              ),
-            ),
-            Container(
-              padding: EdgeInsets.only(
-                  left: MySize.size16!, right: MySize.size16!, top: 0),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton(
-                    isExpanded: true,
-                    dropdownColor: themeData.colorScheme.surface,
-                    icon: Icon(
-                      Icons.arrow_drop_down,
-                    ),
-                    value: usePriceGroup,
-                    items: _priceGroupMenuItems,
-                    onChanged: (bool? newValue) async {
-                      await _showCartResetDialogForPriceGroup();
-                      setState(() {
-                        usePriceGroup = newValue!;
-                        if (changePriceGroup) {
-                          //reset cart items
-                          Sell().resetCart();
-                          //reset all filters & search
-                          brandId = 0;
-                          categoryId = 0;
-                          searchController.clear();
-                          inStock = true;
-                          cartCount = 0;
-
-                          products = [];
-                          offset = 0;
-                          productList();
-                        }
-                      });
-                    }),
-              ),
-            )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget filter(_scaffoldKey) {
+  Widget filter(scaffoldKey) {
     return Container(
       margin: EdgeInsets.all(MySize.size16!),
       padding: EdgeInsets.symmetric(vertical: MySize.size8!),
@@ -916,7 +850,7 @@ class _ProductsState extends State<Products> {
             child: InkWell(
               borderRadius: BorderRadius.circular(MySize.size20!),
               onTap: () {
-                _scaffoldKey.currentState.openEndDrawer();
+                scaffoldKey.currentState.openEndDrawer();
               },
               child: Container(
                 margin: EdgeInsets.only(left: MySize.size12!),
@@ -989,7 +923,6 @@ class _ProductsState extends State<Products> {
     );
   }
 
-  //add product to cart after scanning barcode
   getScannedProduct(String barcode) async {
     if (canMakeSell) {
       await Variations()
@@ -1043,203 +976,6 @@ class _ProductsState extends State<Products> {
     }
   }
 
-  Widget _productsList() {
-    if (isLoading && products.isEmpty) {
-      return _buildShimmerSkeleton();
-    }
-    
-    return (products.length == 0 && isInitialized)
-        ? Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.hourglass_empty),
-                Text(AppLocalizations.of(context)
-                    .translate('no_products_found')),
-              ],
-            ),
-          )
-        : Container(
-            child: (gridView)
-                ? GridView.builder(
-              padding: EdgeInsets.symmetric(
-                        horizontal: MySize.size16!,
-                        vertical: MySize.size20!),
-                    shrinkWrap: true,
-                    physics: ClampingScrollPhysics(),
-                    itemCount: products.length,
-                    gridDelegate: new SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: MySize.size16!,
-                      crossAxisSpacing: MySize.size12!,
-                      childAspectRatio: 0.8,
-                    ),
-                    itemBuilder: (context, index) {
-                      return InkWell(
-                        onTap: () async {
-                          onTapProduct(index);
-                        },
-                        child: _ProductGridWidget(
-                          name: products[index]['display_name'],
-                          image: products[index]['product_image_url'],
-                          qtyAvailable: (products[index]['enable_stock'] != 0)
-                              ? products[index]['stock_available'].toString()
-                              : '-',
-                          price: double.parse(
-                              products[index]['unit_price'].toString()),
-                          symbol: symbol,
-                        ),
-                      );
-                    },
-                  )
-                : ListView.builder(
-              shrinkWrap: true,
-                    physics: ClampingScrollPhysics(),
-                    itemCount: products.length,
-                    itemBuilder: (context, index) {
-                      return InkWell(
-                        onTap: () async {
-                          onTapProduct(index);
-                        },
-                        child: _ProductListWidget(
-                          name: products[index]['display_name'],
-                          image: products[index]['product_image_url'],
-                          qtyAvailable: (products[index]['enable_stock'] != 0)
-                              ? products[index]['stock_available'].toString()
-                              : '-',
-                          price: double.parse(
-                              products[index]['unit_price'].toString()),
-                          symbol: symbol,
-                        ),
-                      );
-                    },
-                  ),
-          );
-  }
-
-  //onTap product
-  onTapProduct(int index) async {
-    if (canAddSell) {
-      if (canMakeSell) {
-        if (products[index]['stock_available'] > 0) {
-          Fluttertoast.showToast(
-              msg: AppLocalizations.of(context).translate('added_to_cart'));
-          await Sell().addToCart(
-              products[index], argument != null ? argument!['sellId'] : null);
-          if (argument != null) {
-            selectedLocationId = argument!['locationId'];
-          }
-        } else {
-          Fluttertoast.showToast(
-              msg: "${AppLocalizations.of(context).translate("out_of_stock")}");
-        }
-      } else {
-        Fluttertoast.showToast(
-            msg:
-                "${AppLocalizations.of(context).translate("no_sells_permission")}");
-      }
-    } else {
-      Fluttertoast.showToast(
-          msg: AppLocalizations.of(context).translate('no_subscription_found'));
-    }
-  }
-
-  setLocationMap() async {
-    await System().get('location').then((value) async {
-      value.forEach((element) {
-        if (element['is_active'].toString() == '1') {
-          setState(() {
-            locationListMap.add({
-              'id': element['id'],
-              'name': element['name'],
-              'selling_price_group_id': element['selling_price_group_id']
-            });
-          });
-        }
-      });
-      await priceGroupList();
-    });
-  }
-
-  setDefaultLocation(defaultLocation) {
-    if (defaultLocation != 0) {
-      if (mounted) {
-        setState(() {
-          selectedLocationId = defaultLocation;
-        });
-      }
-    } else if (locationListMap.length == 2) {
-      if (mounted) {
-        setState(() {
-          selectedLocationId = locationListMap[1]['id'] as int;
-        });
-      }
-    }
-  }
-
-  Widget locations() {
-    return DropdownButtonHideUnderline(
-      child: DropdownButton(
-          dropdownColor: themeData.colorScheme.surface,
-          icon: Icon(
-            Icons.arrow_drop_down,
-          ),
-          value: selectedLocationId,
-          items: locationListMap.map<DropdownMenuItem<int>>((Map value) {
-            return DropdownMenuItem<int>(
-                value: value['id'],
-                child: SizedBox(
-                  width: MySize.screenWidth! * 0.4,
-                  child: Text('${value['name']}',
-                      softWrap: true,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                      style: TextStyle(fontSize: 15)),
-                ));
-          }).toList(),
-          onTap: () {
-            if (locationListMap.length <= 2) {
-              canChangeLocation = false;
-            }
-          },
-          onChanged: (int? newValue) async {
-            // show a confirmation if there location is changed.
-            if (canChangeLocation) {
-              if (selectedLocationId == newValue) {
-                changeLocation = false;
-              } else if (selectedLocationId != 0) {
-                await _showCartResetDialogForLocation();
-                await priceGroupList();
-              } else {
-                changeLocation = true;
-                await priceGroupList();
-              }
-              setState(() {
-                if (changeLocation) {
-                  //reset cart items
-                  Sell().resetCart();
-                  selectedLocationId = newValue!;
-                  //reset all filters & search
-                  brandId = 0;
-                  categoryId = 0;
-                  searchController.clear();
-                  inStock = true;
-                  cartCount = 0;
-
-                  products = [];
-                  offset = 0;
-                  productList();
-                }
-              });
-            } else {
-              Fluttertoast.showToast(
-                  msg: AppLocalizations.of(context)
-                      .translate('cannot_change_location'));
-            }
-          }),
-    );
-  }
-
   Future<void> _showCartResetDialogForLocation() async {
     await showDialog(
       context: context,
@@ -1268,7 +1004,7 @@ class _ProductsState extends State<Products> {
     );
   }
 
-  Future<void> _showCartResetDialogForPriceGroup() async {
+  Future<void> _showCartResetDialogForPriceGroup(bool? value) async {
     await showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1294,638 +1030,20 @@ class _ProductsState extends State<Products> {
         );
       },
     );
-  }
-
-  Widget _buildShimmerSkeleton() {
-    return Container(
-      child: (gridView) ? _buildGridShimmer() : _buildListShimmer(),
-    );
-  }
-
-  Widget _buildGridShimmer() {
-    return GridView.builder(
-      padding: EdgeInsets.symmetric(
-          horizontal: MySize.size16!, vertical: MySize.size20!),
-      shrinkWrap: true,
-      physics: ClampingScrollPhysics(),
-      itemCount: 6, // Show 6 skeleton items
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: MySize.size16!,
-        crossAxisSpacing: MySize.size12!,
-        childAspectRatio: 0.8,
-      ),
-      itemBuilder: (context, index) {
-        return _ProductGridShimmer();
-      },
-    );
-  }
-
-  Widget _buildListShimmer() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: ClampingScrollPhysics(),
-      itemCount: 8, // Show 8 skeleton items
-      itemBuilder: (context, index) {
-        return _ProductListShimmer();
-      },
-    );
-  }
-}
-
-class _ProductGridShimmer extends StatefulWidget {
-  @override
-  _ProductGridShimmerState createState() => _ProductGridShimmerState();
-}
-
-class _ProductGridShimmerState extends State<_ProductGridShimmer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    _animationController.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    ThemeData themeData = Theme.of(context);
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Container(
-          decoration: BoxDecoration(
-            color: themeData.cardTheme.color,
-            borderRadius: BorderRadius.all(Radius.circular(MySize.size16!)),
-            boxShadow: [
-              BoxShadow(
-                color: themeData.cardTheme.shadowColor!.withAlpha(20),
-                blurRadius: 12,
-                spreadRadius: 2,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          padding: EdgeInsets.all(MySize.size8!),
-          margin: EdgeInsets.symmetric(vertical: MySize.size4!),
-          child: Column(
-            children: <Widget>[
-              Expanded(
-                flex: 4,
-                child: Container(
-                  width: double.infinity,
-                  height: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(_animation.value * 0.3),
-                    borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(MySize.size16!),
-                        topRight: Radius.circular(MySize.size16!)),
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.symmetric(
-                      horizontal: MySize.size6!, vertical: MySize.size4!),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Container(
-                        height: 12,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(_animation.value * 0.3),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Container(
-                        height: 10,
-                        width: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(_animation.value * 0.3),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                      ),
-                      Spacer(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          Container(
-                            height: 16,
-                            width: 60,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(_animation.value * 0.3),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          Container(
-                            height: 14,
-                            width: 30,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(_animation.value * 0.3),
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ProductListShimmer extends StatefulWidget {
-  @override
-  _ProductListShimmerState createState() => _ProductListShimmerState();
-}
-
-class _ProductListShimmerState extends State<_ProductListShimmer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    _animationController.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    ThemeData themeData = Theme.of(context);
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Container(
-          decoration: BoxDecoration(
-            color: themeData.cardTheme.color,
-            borderRadius: BorderRadius.all(Radius.circular(MySize.size16!)),
-            boxShadow: [
-              BoxShadow(
-                color: themeData.cardTheme.shadowColor!.withAlpha(20),
-                blurRadius: 8,
-                spreadRadius: 1,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          margin: EdgeInsets.symmetric(
-              horizontal: MySize.size16!, vertical: MySize.size8!),
-          padding: EdgeInsets.all(MySize.size12!),
-          child: ListTile(
-            leading: Container(
-              width: MySize.size60,
-              height: MySize.size60,
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(_animation.value * 0.3),
-                borderRadius: BorderRadius.circular(MySize.size16!),
-              ),
-            ),
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 14,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(_animation.value * 0.3),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                ),
-                SizedBox(height: 4),
-                Container(
-                  height: 12,
-                  width: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(_animation.value * 0.3),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              ],
-            ),
-            trailing: Container(
-              width: MySize.size100,
-              height: MySize.size56,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  Container(
-                    height: 16,
-                    width: 60,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(_animation.value * 0.3),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Container(
-                    height: 14,
-                    width: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(_animation.value * 0.3),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ProductGridWidget extends StatefulWidget {
-  final String? name, image, symbol;
-  final String? qtyAvailable;
-  final double? price;
-
-  const _ProductGridWidget(
-      {Key? key,
-      @required this.name,
-      @required this.image,
-      @required this.qtyAvailable,
-      @required this.price,
-      @required this.symbol})
-      : super(key: key);
-
-  @override
-  _ProductGridWidgetState createState() => _ProductGridWidgetState();
-}
-
-class _ProductGridWidgetState extends State<_ProductGridWidget> {
-  static int themeType = 1;
-  ThemeData themeData = AppTheme.getThemeFromThemeMode(themeType);
-
-  @override
-  Widget build(BuildContext context) {
-    String key = Generator.randomString(10);
-    themeData = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: themeData.cardTheme.color,
-        borderRadius: BorderRadius.all(Radius.circular(MySize.size16!)),
-        boxShadow: [
-          BoxShadow(
-            color: themeData.cardTheme.shadowColor!.withAlpha(20),
-            blurRadius: 12,
-            spreadRadius: 2,
-            offset: Offset(0, 6),
-          ),
-          BoxShadow(
-            color: themeData.colorScheme.primary.withAlpha(8),
-            blurRadius: 4,
-            spreadRadius: 0,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.all(MySize.size8!),
-      margin: EdgeInsets.symmetric(vertical: MySize.size4!),
-      child: Column(
-        children: <Widget>[
-          Expanded(
-            flex: 4,
-            child: Stack(
-              children: <Widget>[
-                Hero(
-                  tag: key,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(MySize.size16!),
-                        topRight: Radius.circular(MySize.size16!)),
-                    child: Container(
-                      width: double.infinity,
-                      height: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.grey.withOpacity(0.1),
-                            Colors.grey.withOpacity(0.05),
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                      ),
-                      child: CachedNetworkImage(
-                          width: double.infinity,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) =>
-                              Image.asset('assets/images/default_product.png'),
-                          placeholder: (context, url) =>
-                              Image.asset('assets/images/default_product.png'),
-                          imageUrl: widget.image ?? ''),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(horizontal: MySize.size6!, vertical: MySize.size4!),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Flexible(
-                    flex: 2,
-                    child: Text(widget.name!,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 2,
-                        style: AppTheme.getTextStyle(themeData.textTheme.bodyMedium,
-                            fontWeight: 600, fontSize: 12, letterSpacing: 0.1)),
-                  ),
-                  Spacer(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      Flexible(
-                        flex: 3,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: MySize.size4!, vertical: MySize.size2!),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                themeData.colorScheme.primary.withOpacity(0.1),
-                                themeData.colorScheme.primary.withOpacity(0.05),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(MySize.size4!),
-                          ),
-                          child: Text(
-                            widget.symbol! + Helper().formatCurrency(widget.price),
-                            style: AppTheme.getTextStyle(
-                                themeData.textTheme.bodySmall,
-                                fontWeight: 700,
-                                fontSize: 10,
-                                color: themeData.colorScheme.primary,
-                                letterSpacing: 0.1),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: MySize.size2!),
-                      Flexible(
-                        flex: 2,
-                        child: Container(
-                          decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  themeData.colorScheme.secondary,
-                                  themeData.colorScheme.secondary.withOpacity(0.8),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.all(
-                                  Radius.circular(MySize.size4!))),
-                          padding: EdgeInsets.symmetric(
-                              horizontal: MySize.size4!,
-                              vertical: MySize.size2!),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              Icon(
-                                MdiIcons.stocking,
-                                color: themeData.colorScheme.onSecondary,
-                                size: MySize.size10,
-                              ),
-                              SizedBox(width: MySize.size2!),
-                              Flexible(
-                                child: (widget.qtyAvailable != '-')
-                                    ? Text(
-                                        Helper()
-                                            .formatQuantity(widget.qtyAvailable),
-                                        style: AppTheme.getTextStyle(
-                                            themeData.textTheme.bodySmall,
-                                            fontSize: 9,
-                                            color:
-                                                themeData.colorScheme.onSecondary,
-                                            fontWeight: 600),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1)
-                                    : Text('-',
-                                        style: TextStyle(
-                                            color: themeData.colorScheme.onSecondary,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 9)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProductListWidget extends StatefulWidget {
-  final String? name, image, symbol;
-  final String? qtyAvailable;
-  final double? price;
-
-  const _ProductListWidget(
-      {Key? key,
-      @required this.name,
-      @required this.image,
-      @required this.qtyAvailable,
-      @required this.price,
-      @required this.symbol})
-      : super(key: key);
-
-  @override
-  _ProductListWidgetState createState() => _ProductListWidgetState();
-}
-
-class _ProductListWidgetState extends State<_ProductListWidget> {
-  static int themeType = 1;
-  ThemeData themeData = AppTheme.getThemeFromThemeMode(themeType);
-
-  @override
-  Widget build(BuildContext context) {
-    themeData = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: themeData.cardTheme.color,
-        borderRadius: BorderRadius.all(Radius.circular(MySize.size16!)),
-        boxShadow: [
-          BoxShadow(
-            color: themeData.cardTheme.shadowColor!.withAlpha(20),
-            blurRadius: 8,
-            spreadRadius: 1,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      margin: EdgeInsets.symmetric(
-          horizontal: MySize.size16!, vertical: MySize.size8!),
-      padding: EdgeInsets.all(MySize.size12!),
-      child: ListTile(
-        leading: Container(
-          width: MySize.size60,
-          height: MySize.size60,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(MySize.size16!),
-            boxShadow: [
-              BoxShadow(
-                color: themeData.colorScheme.primary.withAlpha(20),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(MySize.size16!),
-            child: CachedNetworkImage(
-                width: MySize.size60,
-                height: MySize.size60,
-                fit: BoxFit.cover,
-                errorWidget: (context, url, error) =>
-                    Image.asset('assets/images/default_product.png'),
-                placeholder: (context, url) =>
-                    Image.asset('assets/images/default_product.png'),
-                imageUrl: widget.image ?? ''),
-          ),
-        ),
-        title: Text(widget.name!,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AppTheme.getTextStyle(themeData.textTheme.titleMedium,
-                fontWeight: 600, letterSpacing: 0.2)),
-        trailing: Container(
-          width: MySize.size100,
-          height: MySize.size56,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              Flexible(
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: MySize.size6!, vertical: MySize.size2!),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        themeData.colorScheme.primary.withOpacity(0.1),
-                        themeData.colorScheme.primary.withOpacity(0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(MySize.size6!),
-                  ),
-                  child: Text(
-                    widget.symbol! + Helper().formatCurrency(widget.price),
-                    style: AppTheme.getTextStyle(themeData.textTheme.bodySmall,
-                        fontWeight: 700, 
-                        fontSize: 11,
-                        color: themeData.colorScheme.primary,
-                        letterSpacing: 0.1),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-              ),
-              SizedBox(height: MySize.size2!),
-              Flexible(
-                child: Container(
-                  decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          themeData.colorScheme.secondary,
-                          themeData.colorScheme.secondary.withOpacity(0.8),
-                        ],
-                      ),
-                      borderRadius:
-                          BorderRadius.all(Radius.circular(MySize.size8!))),
-                  padding: EdgeInsets.symmetric(
-                      horizontal: MySize.size6!,
-                      vertical: MySize.size2!),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      Icon(
-                        MdiIcons.stocking,
-                        color: themeData.colorScheme.onSecondary,
-                        size: MySize.size10,
-                      ),
-                      SizedBox(width: MySize.size2!),
-                      Flexible(
-                        child: (widget.qtyAvailable != '-')
-                            ? Text(Helper().formatQuantity(widget.qtyAvailable),
-                                style: AppTheme.getTextStyle(
-                                    themeData.textTheme.bodySmall,
-                                    fontSize: 10,
-                                    color: themeData.colorScheme.onSecondary,
-                                    fontWeight: 600),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1)
-                            : Text('-',
-                                style: TextStyle(
-                                    color: themeData.colorScheme.onSecondary,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    
+    setState(() {
+      usePriceGroup = value!;
+      if (changePriceGroup) {
+        Sell().resetCart();
+        brandId = 0;
+        categoryId = 0;
+        searchController.clear();
+        inStock = true;
+        cartCount = 0;
+        products = [];
+        offset = 0;
+        productList();
+      }
+    });
   }
 }

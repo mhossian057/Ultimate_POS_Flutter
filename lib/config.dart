@@ -3,10 +3,12 @@ import 'dart:ui';
 
 class Config {
 
-  static String baseUrl = 'https://billmate.gtsoftwares.com/';
+  static String baseUrl = 'https://dev.gtsoftwares.com/';
+  // static String baseUrl = 'https://billmate.gtsoftwares.com/';
   static int? userId;
-       String clientId = '11',
-        clientSecret = 'pbObvml6ZHegu9c2OyJlBN0pMBjDab9Kd0AHfZuT',
+       String clientId = '6',
+        clientSecret = 'kevYEEokYoY8TKL9gJgednf8HmEvMkfZn71Q3iie',
+        // clientSecret = 'pbObvml6ZHegu9c2OyJlBN0pMBjDab9Kd0AHfZuT',
         copyright = '\u00a9',
         appName = 'billmate',
         version = 'V 1.7',

@@ -73,11 +73,28 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: any
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.3.10
 
-flutter_icons:
+flutter_launcher_icons:
   android: "launcher_icon"
-  image_path: "assets/icon/TM Tech POS.png"
+  ios: true
+  image_path: "assets/icon/new_logo.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  
+flutter_native_splash:
+  color: "#ffffff"
+  image: assets/icon/new_logo.png
+  branding: assets/images/logo.png
+  color_dark: "#042a49"
+  image_dark: assets/icon/new_logo.png
+  branding_dark: assets/images/logo.png
+  android_12:
+    image: assets/icon/new_logo.png
+    icon_background_color: "#ffffff"
+    image_dark: assets/icon/new_logo.png
+    icon_background_color_dark: "#042a49"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
