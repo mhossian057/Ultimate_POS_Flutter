@@ -11,6 +11,7 @@ class ProductModel {
       'discount_amount': element['discount_amount'],
       'stock_available': element['stock_available'],
       'display_name': element['display_name'],
+      'product_name': element['product_name'],
       'product_image_url': element['product_image_url'],
       'enable_stock': element['enable_stock'],
       'variation_name': element['variation_name'],
