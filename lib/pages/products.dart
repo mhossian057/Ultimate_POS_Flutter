@@ -549,8 +549,8 @@ class _ProductsState extends State<Products> {
       final variations = await Variations().getByProductId(productId, selectedLocationId);
       
       if (variations.isEmpty) {
-        Fluttertoast.showToast(
-            msg: AppLocalizations.of(context).translate('no_products_found'));
+        // No variations found, add current product directly to cart (fallback to old behavior)
+        await _addCurrentProductToCart(index);
         return;
       }
 
@@ -584,6 +584,42 @@ class _ProductsState extends State<Products> {
       print('Error loading variations: $e');
       Fluttertoast.showToast(
           msg: 'Error loading product variations');
+    }
+  }
+
+  // Helper method to add current product to cart (original behavior)
+  Future<void> _addCurrentProductToCart(int index) async {
+    if (!canAddSell) {
+      Fluttertoast.showToast(
+          msg: AppLocalizations.of(context).translate('no_subscription_found'));
+      return;
+    }
+
+    if (!canMakeSell) {
+      Fluttertoast.showToast(
+          msg: AppLocalizations.of(context).translate('no_sells_permission'));
+      return;
+    }
+
+    if (products[index]['enable_stock'] == 1 && products[index]['stock_available'] <= 0) {
+      Fluttertoast.showToast(
+          msg: AppLocalizations.of(context).translate('out_of_stock'));
+      return;
+    }
+
+    try {
+      await Sell().addToCart(
+          products[index], argument != null ? argument!['sellId'] : null);
+      
+      if (argument != null) {
+        selectedLocationId = argument!['locationId'];
+      }
+
+      Fluttertoast.showToast(
+          msg: AppLocalizations.of(context).translate('added_to_cart'));
+    } catch (e) {
+      print('Error adding to cart: $e');
+      Fluttertoast.showToast(msg: 'Error adding to cart');
     }
   }
 

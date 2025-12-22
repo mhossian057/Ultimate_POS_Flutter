@@ -109,7 +109,7 @@ class ProductVariationsDialog extends StatelessWidget {
               children: [
                 SizedBox(height: MySize.size8!),
                 Text(
-                  '${symbol}${double.parse(variation['sell_price_inc_tax'].toString()).toStringAsFixed(2)}',
+                  '${symbol}${_formatPrice(variation['sell_price_inc_tax'])}',
                   style: AppTheme.getTextStyle(
                     themeData.textTheme.titleMedium,
                     color: themeData.colorScheme.primary,
@@ -148,6 +148,15 @@ class ProductVariationsDialog extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _formatPrice(dynamic price) {
+    if (price == null) return '0.00';
+    try {
+      return double.parse(price.toString()).toStringAsFixed(2);
+    } catch (e) {
+      return '0.00';
+    }
   }
 
   void _addToCart(BuildContext context, Map variation, int index) async {
