@@ -204,6 +204,29 @@ class Variations {
     }
   }
 
+  //get all variations by product_id
+  getByProductId(int productId, int locationId) async {
+    final db = await dbProvider.database;
+    String productLastSync = await System().getProductLastSync();
+    
+    var result = await db.rawQuery('SELECT DISTINCT V.* ,'
+        'CASE WHEN (qty_available IS NULL AND enable_stock = 0) THEN 9999 '
+        'WHEN (qty_available IS NULL AND enable_stock = 1) THEN 0 '
+        'ELSE (qty_available - COALESCE('
+        ' (SELECT SUM(SL.quantity) FROM sell_lines AS SL JOIN sell AS S on SL.sell_id = S.id'
+        ' WHERE (SL.is_completed = 0 OR S.transaction_date > "$productLastSync") AND'
+        ' S.location_id = $locationId AND SL.variation_id=V.variation_id AND S.is_quotation = 0), 0))'
+        'END as "stock_available" '
+        'FROM "variations" as V '
+        'JOIN "product_locations" as PL '
+        'on (V.product_id = PL.product_id AND PL.location_id = $locationId )'
+        ' LEFT JOIN "variations_location_details" as VLD '
+        'ON V.variation_id = VLD.variation_id AND VLD.location_id = $locationId '
+        'WHERE V.product_id = $productId '
+        'ORDER BY V.variation_name');
+    return result;
+  }
+
   //empty variations
   deleteVariationDetails() async {
     final db = await dbProvider.database;

@@ -18,6 +18,7 @@ import 'widgets/product_grid_widget.dart';
 import 'widgets/product_list_widget.dart';
 import 'widgets/product_shimmer_widgets.dart';
 import 'widgets/products_filter_drawer.dart';
+import 'widgets/product_variations_dialog.dart';
 
 class Products extends StatefulWidget {
   @override
@@ -534,30 +535,55 @@ class _ProductsState extends State<Products> {
     return counts;
   }
 
-  //onTap product
+  //onTap product - show variations dialog
   onTapProduct(int index) async {
-    if (canAddSell) {
-      if (canMakeSell) {
-        if (products[index]['stock_available'] > 0) {
-          Fluttertoast.showToast(
-              msg: AppLocalizations.of(context).translate('added_to_cart'));
-          await Sell().addToCart(
-              products[index], argument != null ? argument!['sellId'] : null);
-          if (argument != null) {
-            selectedLocationId = argument!['locationId'];
-          }
-        } else {
-          Fluttertoast.showToast(
-              msg: "${AppLocalizations.of(context).translate("out_of_stock")}");
-        }
-      } else {
-        Fluttertoast.showToast(
-            msg:
-                "${AppLocalizations.of(context).translate("no_sells_permission")}");
-      }
-    } else {
+    if (!canViewProducts) {
       Fluttertoast.showToast(
-          msg: AppLocalizations.of(context).translate('no_subscription_found'));
+          msg: AppLocalizations.of(context).translate('unauthorised'));
+      return;
+    }
+
+    try {
+      // Get all variations for this product
+      final productId = int.parse(products[index]['product_id'].toString());
+      final variations = await Variations().getByProductId(productId, selectedLocationId);
+      
+      if (variations.isEmpty) {
+        Fluttertoast.showToast(
+            msg: AppLocalizations.of(context).translate('no_products_found'));
+        return;
+      }
+
+      // Process variations with price groups
+      List processedVariations = [];
+      variations.forEach((variation) {
+        var price;
+        if (variation['selling_price_group'] != null) {
+          jsonDecode(variation['selling_price_group']).forEach((element) {
+            if (element['key'] == sellingPriceGroupId) {
+              price = double.parse(element['value'].toString());
+            }
+          });
+        }
+        processedVariations.add(ProductModel().product(variation, price));
+      });
+
+      // Show variations dialog
+      showDialog(
+        context: context,
+        builder: (context) => ProductVariationsDialog(
+          variations: processedVariations,
+          symbol: symbol,
+          productName: products[index]['display_name'],
+          canAddSell: canAddSell,
+          canMakeSell: canMakeSell,
+          argument: argument,
+        ),
+      );
+    } catch (e) {
+      print('Error loading variations: $e');
+      Fluttertoast.showToast(
+          msg: 'Error loading product variations');
     }
   }
 
