@@ -554,7 +554,22 @@ class _ProductsState extends State<Products> {
         return;
       }
 
-      // Process variations with price groups
+      // If only 1 variation (single product), add directly to cart
+      if (variations.length == 1) {
+        var price;
+        if (variations[0]['selling_price_group'] != null) {
+          jsonDecode(variations[0]['selling_price_group']).forEach((element) {
+            if (element['key'] == sellingPriceGroupId) {
+              price = double.parse(element['value'].toString());
+            }
+          });
+        }
+        var singleVariation = ProductModel().product(variations[0], price);
+        await _addSingleVariationToCart(singleVariation);
+        return;
+      }
+
+      // Multiple variations found, show dialog
       List processedVariations = [];
       variations.forEach((variation) {
         var price;
@@ -610,6 +625,42 @@ class _ProductsState extends State<Products> {
     try {
       await Sell().addToCart(
           products[index], argument != null ? argument!['sellId'] : null);
+      
+      if (argument != null) {
+        selectedLocationId = argument!['locationId'];
+      }
+
+      Fluttertoast.showToast(
+          msg: AppLocalizations.of(context).translate('added_to_cart'));
+    } catch (e) {
+      print('Error adding to cart: $e');
+      Fluttertoast.showToast(msg: 'Error adding to cart');
+    }
+  }
+
+  // Helper method to add single variation to cart (when no actual variations)
+  Future<void> _addSingleVariationToCart(Map variation) async {
+    if (!canAddSell) {
+      Fluttertoast.showToast(
+          msg: AppLocalizations.of(context).translate('no_subscription_found'));
+      return;
+    }
+
+    if (!canMakeSell) {
+      Fluttertoast.showToast(
+          msg: AppLocalizations.of(context).translate('no_sells_permission'));
+      return;
+    }
+
+    if (variation['enable_stock'] == 1 && variation['stock_available'] <= 0) {
+      Fluttertoast.showToast(
+          msg: AppLocalizations.of(context).translate('out_of_stock'));
+      return;
+    }
+
+    try {
+      await Sell().addToCart(
+          variation, argument != null ? argument!['sellId'] : null);
       
       if (argument != null) {
         selectedLocationId = argument!['locationId'];
