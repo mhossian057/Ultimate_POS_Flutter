@@ -345,7 +345,7 @@ class _ProductsState extends State<Products> {
         childAspectRatio: 0.8,
       ),
       itemBuilder: (context, index) => ProductGridWidget(
-        name: products[index]['display_name'],
+        name: products[index]['product_name'],
         image: products[index]['product_image_url'],
         qtyAvailable: (products[index]['enable_stock'] != 0)
             ? products[index]['stock_available'].toString()
@@ -363,7 +363,7 @@ class _ProductsState extends State<Products> {
       physics: ClampingScrollPhysics(),
       itemCount: products.length,
       itemBuilder: (context, index) => ProductListWidget(
-        name: products[index]['display_name'],
+        name: products[index]['product_name'],
         image: products[index]['product_image_url'],
         qtyAvailable: (products[index]['enable_stock'] != 0)
             ? products[index]['stock_available'].toString()
@@ -608,7 +608,7 @@ class _ProductsState extends State<Products> {
         builder: (context) => ProductVariationsDialog(
           variations: processedVariations,
           symbol: symbol,
-          productName: products[index]['display_name'],
+          productName: products[index]['product_name'],
           canAddSell: canAddSell,
           canMakeSell: canMakeSell,
           argument: argument,
