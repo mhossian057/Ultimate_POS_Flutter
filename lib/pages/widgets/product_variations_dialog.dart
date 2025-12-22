@@ -98,7 +98,9 @@ class ProductVariationsDialog extends StatelessWidget {
           child: ListTile(
             contentPadding: EdgeInsets.all(MySize.size16!),
             title: Text(
-              variation['variation_name'] ?? 'Default',
+              (variation['variation_name'] != null && variation['variation_name'].toString().isNotEmpty) 
+                ? variation['variation_name'] 
+                : 'Default',
               style: AppTheme.getTextStyle(
                 themeData.textTheme.titleMedium,
                 fontWeight: 600,
