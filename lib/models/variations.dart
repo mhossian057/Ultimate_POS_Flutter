@@ -157,7 +157,7 @@ class Variations {
 
     //get product last sync datetime
     String productLastSync = await System().getProductLastSync();
-    var result = db.rawQuery('SELECT DISTINCT V.* ,'
+    var result = db.rawQuery('SELECT V.* ,'
         'CASE WHEN (qty_available IS NULL AND enable_stock = 0) THEN 9999 '
         'WHEN (qty_available IS NULL AND enable_stock = 1) THEN 0 '
         'ELSE (qty_available - COALESCE('
@@ -170,22 +170,22 @@ class Variations {
         'on (V.product_id = PL.product_id AND PL.location_id = $locationId )'
         ' LEFT JOIN "variations_location_details" as VLD '
         'ON V.variation_id = VLD.variation_id AND VLD.location_id = $locationId '
-        '$where ORDER BY ${order}id LIMIT 10 OFFSET ($offset-1)*10');
+        '$where '
+        'GROUP BY V.product_id '
+        'ORDER BY ${order}V.product_id LIMIT 10 OFFSET ($offset-1)*10');
     return result;
   }
 
-  //total no. of rows in variations table
+  //total no. of unique products in variations table
   checkProductTable({var locationId}) async {
     final db = await dbProvider.database;
     var res = (locationId != null)
-        ? await db.rawQuery('SELECT count(*)'
+        ? await db.rawQuery('SELECT count(DISTINCT V.product_id) as count '
             'FROM "variations" as V '
             'JOIN "product_locations" as PL '
-            'on (V.product_id = PL.product_id AND PL.location_id = $locationId )'
-            ' LEFT JOIN "variations_location_details" as VLD '
-            'ON V.variation_id = VLD.variation_id AND VLD.location_id = $locationId ')
-        : await db.rawQuery("SELECT count(*) FROM variations", null);
-    return res[0]['count(*)'];
+            'on (V.product_id = PL.product_id AND PL.location_id = $locationId )')
+        : await db.rawQuery("SELECT count(DISTINCT product_id) as count FROM variations", null);
+    return res[0]['count'];
   }
 
 //  refresh variations and variations_locations
