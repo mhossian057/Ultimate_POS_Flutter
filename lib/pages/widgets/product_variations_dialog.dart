@@ -4,7 +4,6 @@ import 'package:fluttertoast/fluttertoast.dart';
 import '../../helpers/AppTheme.dart';
 import '../../helpers/SizeConfig.dart';
 import '../../locale/MyLocalizations.dart';
-import '../../models/product_model.dart';
 import '../../models/sell.dart';
 
 class ProductVariationsDialog extends StatelessWidget {
