@@ -497,16 +497,29 @@ class _ProductsState extends State<Products> {
           byPrice: byPrice);
 
       List newProducts = [];
+      Set<String> seenProductIds = {};
+      
+      // Get currently displayed product IDs to avoid duplicates across pages
+      products.forEach((existingProduct) {
+        seenProductIds.add(existingProduct['product_id'].toString());
+      });
+      
       productData.forEach((product) {
-        var price;
-        if (product['selling_price_group'] != null) {
-          jsonDecode(product['selling_price_group']).forEach((element) {
-            if (element['key'] == sellingPriceGroupId) {
-              price = double.parse(element['value'].toString());
-            }
-          });
+        String productId = product['product_id'].toString();
+        
+        // Only add if we haven't seen this product_id before
+        if (!seenProductIds.contains(productId)) {
+          var price;
+          if (product['selling_price_group'] != null) {
+            jsonDecode(product['selling_price_group']).forEach((element) {
+              if (element['key'] == sellingPriceGroupId) {
+                price = double.parse(element['value'].toString());
+              }
+            });
+          }
+          newProducts.add(ProductModel().product(product, price));
+          seenProductIds.add(productId); // Mark this product_id as seen
         }
-        newProducts.add(ProductModel().product(product, price));
       });
 
       if (mounted) {

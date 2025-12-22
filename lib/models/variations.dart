@@ -157,20 +157,10 @@ class Variations {
 
     //get product last sync datetime
     String productLastSync = await System().getProductLastSync();
-    var result = db.rawQuery('SELECT V.product_id, V.product_name, V.sku, V.type, '
-        'V.enable_stock, V.brand_id, V.unit_id, V.category_id, V.sub_category_id, '
-        'V.tax_id, V.product_image_url, V.product_description, '
-        'MIN(V.variation_id) as variation_id, '
-        'MIN(V.variation_name) as variation_name, '
-        'MIN(V.product_variation_name) as product_variation_name, '
-        'MIN(V.display_name) as display_name, '
-        'MIN(V.sub_sku) as sub_sku, '
-        'MIN(V.default_sell_price) as default_sell_price, '
-        'MIN(V.sell_price_inc_tax) as sell_price_inc_tax, '
-        'MIN(V.selling_price_group) as selling_price_group, '
-        'CASE WHEN (MIN(qty_available) IS NULL AND V.enable_stock = 0) THEN 9999 '
-        'WHEN (MIN(qty_available) IS NULL AND V.enable_stock = 1) THEN 0 '
-        'ELSE (MIN(qty_available) - COALESCE('
+    var result = db.rawQuery('SELECT DISTINCT V.* ,'
+        'CASE WHEN (qty_available IS NULL AND enable_stock = 0) THEN 9999 '
+        'WHEN (qty_available IS NULL AND enable_stock = 1) THEN 0 '
+        'ELSE (qty_available - COALESCE('
         ' (SELECT SUM(SL.quantity) FROM sell_lines AS SL JOIN sell AS S on SL.sell_id = S.id'
         ' WHERE (SL.is_completed = 0 OR S.transaction_date > "$productLastSync") AND'
         ' S.location_id = $locationId AND SL.variation_id=V.variation_id AND S.is_quotation = 0), 0))'
@@ -180,11 +170,7 @@ class Variations {
         'on (V.product_id = PL.product_id AND PL.location_id = $locationId )'
         ' LEFT JOIN "variations_location_details" as VLD '
         'ON V.variation_id = VLD.variation_id AND VLD.location_id = $locationId '
-        '$where '
-        'GROUP BY V.product_id, V.product_name, V.sku, V.type, V.enable_stock, '
-        'V.brand_id, V.unit_id, V.category_id, V.sub_category_id, V.tax_id, '
-        'V.product_image_url, V.product_description '
-        'ORDER BY ${order}V.product_id LIMIT 10 OFFSET ($offset-1)*10');
+        '$where ORDER BY ${order}id LIMIT 10 OFFSET ($offset-1)*10');
     return result;
   }
 
