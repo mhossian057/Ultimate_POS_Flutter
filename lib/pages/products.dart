@@ -345,7 +345,7 @@ class _ProductsState extends State<Products> {
         childAspectRatio: 0.8,
       ),
       itemBuilder: (context, index) => ProductGridWidget(
-        name: products[index]['product_name'],
+        name: products[index]['product_name'] ?? 'Unknown Product',
         image: products[index]['product_image_url'],
         qtyAvailable: (products[index]['enable_stock'] != 0)
             ? products[index]['stock_available'].toString()
@@ -363,7 +363,7 @@ class _ProductsState extends State<Products> {
       physics: ClampingScrollPhysics(),
       itemCount: products.length,
       itemBuilder: (context, index) => ProductListWidget(
-        name: products[index]['product_name'],
+        name: products[index]['product_name'] ?? 'Unknown Product',
         image: products[index]['product_image_url'],
         qtyAvailable: (products[index]['enable_stock'] != 0)
             ? products[index]['stock_available'].toString()
@@ -570,7 +570,11 @@ class _ProductsState extends State<Products> {
         }
         // Use default price if no price group price found
         if (price == null) {
-          price = double.parse(variations[0]['sell_price_inc_tax'].toString());
+          try {
+            price = double.parse(variations[0]['sell_price_inc_tax'].toString());
+          } catch (e) {
+            price = 0.0; // Safe fallback
+          }
         }
         var singleVariation = ProductModel().product(variations[0], price);
         await _addSingleVariationToCart(singleVariation);
@@ -581,7 +585,6 @@ class _ProductsState extends State<Products> {
       List processedVariations = [];
       variations.forEach((variation) {
         var price;
-        print('Variation: ${variation['variation_name']}, sell_price_inc_tax: ${variation['sell_price_inc_tax']}');
         
         if (variation['selling_price_group'] != null && variation['selling_price_group'].toString().isNotEmpty) {
           try {
@@ -596,9 +599,12 @@ class _ProductsState extends State<Products> {
         }
         // Use default price if no price group price found
         if (price == null) {
-          price = double.parse(variation['sell_price_inc_tax'].toString());
+          try {
+            price = double.parse(variation['sell_price_inc_tax'].toString());
+          } catch (e) {
+            price = 0.0; // Safe fallback
+          }
         }
-        print('Final price: $price');
         processedVariations.add(ProductModel().product(variation, price));
       });
 
@@ -608,7 +614,7 @@ class _ProductsState extends State<Products> {
         builder: (context) => ProductVariationsDialog(
           variations: processedVariations,
           symbol: symbol,
-          productName: products[index]['product_name'],
+          productName: products[index]['product_name'] ?? 'Unknown Product',
           canAddSell: canAddSell,
           canMakeSell: canMakeSell,
           argument: argument,

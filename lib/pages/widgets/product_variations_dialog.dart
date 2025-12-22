@@ -93,9 +93,6 @@ class ProductVariationsDialog extends StatelessWidget {
         final stockAvailable = variation['stock_available'] ?? 0;
         final isInStock = stockAvailable > 0;
         
-        // Debug logging
-        print('Dialog variation: ${variation['variation_name']}, unit_price: ${variation['unit_price']}');
-        
         return Card(
           margin: EdgeInsets.only(bottom: MySize.size12!),
           child: InkWell(
