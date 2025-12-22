@@ -95,55 +95,57 @@ class ProductVariationsDialog extends StatelessWidget {
         
         return Card(
           margin: EdgeInsets.only(bottom: MySize.size12!),
-          child: ListTile(
-            contentPadding: EdgeInsets.all(MySize.size16!),
-            title: Text(
-              (variation['variation_name'] != null && variation['variation_name'].toString().isNotEmpty) 
-                ? variation['variation_name'] 
-                : 'Default',
-              style: AppTheme.getTextStyle(
-                themeData.textTheme.titleMedium,
-                fontWeight: 600,
-              ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: MySize.size8!),
-                Text(
-                  '${symbol}${_formatPrice(variation['sell_price_inc_tax'])}',
-                  style: AppTheme.getTextStyle(
-                    themeData.textTheme.titleMedium,
-                    color: themeData.colorScheme.primary,
-                    fontWeight: 600,
-                  ),
-                ),
-                if (variation['enable_stock'] == 1) ...[
-                  SizedBox(height: MySize.size4!),
-                  Text(
-                    '${AppLocalizations.of(context).translate('stock')}: ${stockAvailable.toString()}',
-                    style: AppTheme.getTextStyle(
-                      themeData.textTheme.bodySmall,
-                      color: isInStock ? Colors.green : Colors.red,
+          child: InkWell(
+            onTap: (isInStock || variation['enable_stock'] == 0)
+                ? () => _addToCart(context, variation, index)
+                : null,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: EdgeInsets.all(MySize.size16!),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          (variation['variation_name'] != null && variation['variation_name'].toString().isNotEmpty) 
+                            ? variation['variation_name'] 
+                            : 'Default',
+                          style: AppTheme.getTextStyle(
+                            themeData.textTheme.titleMedium,
+                            fontWeight: 600,
+                          ),
+                        ),
+                        SizedBox(height: MySize.size8!),
+                        Text(
+                          '${symbol}${_formatPrice(variation['unit_price'])}',
+                          style: AppTheme.getTextStyle(
+                            themeData.textTheme.titleMedium,
+                            color: themeData.colorScheme.primary,
+                            fontWeight: 600,
+                          ),
+                        ),
+                        if (variation['enable_stock'] == 1) ...[
+                          SizedBox(height: MySize.size4!),
+                          Text(
+                            '${AppLocalizations.of(context).translate('stock')}: ${stockAvailable.toString()}',
+                            style: AppTheme.getTextStyle(
+                              themeData.textTheme.bodySmall,
+                              color: isInStock ? Colors.green : Colors.red,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
+                  Icon(
+                    Icons.add_shopping_cart,
+                    color: (isInStock || variation['enable_stock'] == 0)
+                        ? themeData.colorScheme.primary
+                        : themeData.colorScheme.onSurface.withOpacity(0.3),
+                  ),
                 ],
-              ],
-            ),
-            trailing: ElevatedButton(
-              onPressed: isInStock || variation['enable_stock'] == 0
-                  ? () => _addToCart(context, variation, index)
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: themeData.colorScheme.primary,
-                foregroundColor: themeData.colorScheme.onPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text(
-                AppLocalizations.of(context).translate('add_to_cart'),
-                style: TextStyle(fontSize: 12),
               ),
             ),
           ),

@@ -557,12 +557,20 @@ class _ProductsState extends State<Products> {
       // If only 1 variation (single product), add directly to cart
       if (variations.length == 1) {
         var price;
-        if (variations[0]['selling_price_group'] != null) {
-          jsonDecode(variations[0]['selling_price_group']).forEach((element) {
-            if (element['key'] == sellingPriceGroupId) {
-              price = double.parse(element['value'].toString());
-            }
-          });
+        if (variations[0]['selling_price_group'] != null && variations[0]['selling_price_group'].toString().isNotEmpty) {
+          try {
+            jsonDecode(variations[0]['selling_price_group']).forEach((element) {
+              if (element['key'] == sellingPriceGroupId) {
+                price = double.parse(element['value'].toString());
+              }
+            });
+          } catch (e) {
+            print('Error parsing selling_price_group: $e');
+          }
+        }
+        // Use default price if no price group price found
+        if (price == null) {
+          price = double.parse(variations[0]['sell_price_inc_tax'].toString());
         }
         var singleVariation = ProductModel().product(variations[0], price);
         await _addSingleVariationToCart(singleVariation);
@@ -573,13 +581,24 @@ class _ProductsState extends State<Products> {
       List processedVariations = [];
       variations.forEach((variation) {
         var price;
-        if (variation['selling_price_group'] != null) {
-          jsonDecode(variation['selling_price_group']).forEach((element) {
-            if (element['key'] == sellingPriceGroupId) {
-              price = double.parse(element['value'].toString());
-            }
-          });
+        print('Variation: ${variation['variation_name']}, sell_price_inc_tax: ${variation['sell_price_inc_tax']}');
+        
+        if (variation['selling_price_group'] != null && variation['selling_price_group'].toString().isNotEmpty) {
+          try {
+            jsonDecode(variation['selling_price_group']).forEach((element) {
+              if (element['key'] == sellingPriceGroupId) {
+                price = double.parse(element['value'].toString());
+              }
+            });
+          } catch (e) {
+            print('Error parsing selling_price_group: $e');
+          }
         }
+        // Use default price if no price group price found
+        if (price == null) {
+          price = double.parse(variation['sell_price_inc_tax'].toString());
+        }
+        print('Final price: $price');
         processedVariations.add(ProductModel().product(variation, price));
       });
 
