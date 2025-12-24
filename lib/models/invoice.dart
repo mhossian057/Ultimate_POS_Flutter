@@ -23,7 +23,7 @@ class InvoiceFormatter {
                      <p>Item</p>
                </th>
                
-               <th width="20%">
+               <th width="20%" class="text-center">
                      <p>Qty</p>
                </th>
                
@@ -79,10 +79,9 @@ class InvoiceFormatter {
                </td>
                
                
-               <td  width="20%">               
+               <td  width="20%" class="text-center">               
                      <p>${Helper().formatQuantity(productQuantity)}</p>
                </td>
-               
                
                <td width="20%" class="text-right">               
                      <p>${Helper().formatCurrency(productPrice)}</p>
@@ -683,6 +682,15 @@ class InvoiceFormatter {
       }
       .text-right p {
       text-align: right !important;
+      margin: 0;
+      }
+      
+      /* Center alignment for quantity columns */
+      .text-center {
+      text-align: center !important;
+      }
+      .text-center p {
+      text-align: center !important;
       margin: 0;
       }
       
