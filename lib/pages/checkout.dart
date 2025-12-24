@@ -48,7 +48,8 @@ class CheckOutState extends State<CheckOut> {
   bool _printInvoice = true,
       printWebInvoice = false,
       saleCreated = false,
-      isLoading = false;
+      isLoading = false,
+      _isInitialized = false;
   static int themeType = 1;
   ThemeData themeData = AppTheme.getThemeFromThemeMode(themeType);
   CustomAppTheme customAppTheme = AppTheme.getCustomAppTheme(themeType);
@@ -73,48 +74,61 @@ class CheckOutState extends State<CheckOut> {
     List payments =
         await System().get('payment_method', argument!['locationId']);
     await System().getPaymentAccounts().then((value) {
+      List<Map<String, dynamic>> newPaymentAccounts = [
+        {'id': null, 'name': "None"}
+      ];
+      List<String> accIds = [];
+      
       value.forEach((element) {
-        List<String> accIds = [];
         //check if payment account is assigned to any payment method
         // of selected location.
         payments.forEach((paymentMethod) {
           if ((paymentMethod['account_id'].toString() ==
                   element['id'].toString()) &&
               !accIds.contains(element['id'].toString())) {
-            setState(() {
-              paymentAccounts
-                  .add({'id': element['id'], 'name': element['name']});
-            });
+            accIds.add(element['id'].toString());
+            newPaymentAccounts.add({'id': element['id'], 'name': element['name']});
           }
         });
       });
+      
+      if (this.mounted) {
+        setState(() {
+          paymentAccounts = newPaymentAccounts;
+        });
+      }
     });
   }
 
   @override
   void didChangeDependencies() {
-    argument = ModalRoute.of(context)!.settings.arguments as Map?;
-    invoiceAmount = argument!['invoiceAmount'];
-    setPaymentAccounts().then((value) {
-      if (argument!['sellId'] == null) {
-        setPaymentDetails().then((value) {
-          payments.add({
-            'amount': invoiceAmount,
-            'method': paymentMethods[0]['name'],
-            'note': '',
-            'account_id': paymentMethods[0]['account_id']
+    if (!_isInitialized) {
+      argument = ModalRoute.of(context)!.settings.arguments as Map?;
+      invoiceAmount = argument!['invoiceAmount'];
+      setPaymentAccounts().then((value) {
+        if (argument!['sellId'] == null) {
+          setPaymentDetails().then((value) {
+            if (payments.isEmpty) {
+              payments.add({
+                'amount': invoiceAmount,
+                'method': paymentMethods[0]['name'],
+                'note': '',
+                'account_id': paymentMethods[0]['account_id']
+              });
+              calculateMultiPayment();
+            }
           });
-          calculateMultiPayment();
-        });
-      } else {
-        setPaymentDetails().then((value) {
-          onEdit(argument!['sellId']);
-        });
-      }
-    });
-    setState(() {
-      isLoading = false;
-    });
+        } else {
+          setPaymentDetails().then((value) {
+            onEdit(argument!['sellId']);
+          });
+        }
+      });
+      setState(() {
+        isLoading = false;
+        _isInitialized = true;
+      });
+    }
     super.didChangeDependencies();
   }
 
@@ -215,11 +229,13 @@ class CheckOutState extends State<CheckOut> {
             ),
           ),
           ListView.builder(
+              key: ValueKey('payments_list_${payments.length}'),
               physics: ScrollPhysics(),
               shrinkWrap: true,
               itemCount: payments.length,
               itemBuilder: (context, index) {
                 return Card(
+                  key: ValueKey('payment_card_$index'),
                   margin: EdgeInsets.all(MySize.size5!),
                   shadowColor: Colors.blue,
                   child: Padding(
@@ -244,6 +260,7 @@ class CheckOutState extends State<CheckOut> {
                                   height: MySize.size40,
                                   width: MySize.safeWidth! * 0.50,
                                   child: TextFormField(
+                                      key: ValueKey('payment_amount_$index'),
                                       decoration: InputDecoration(
                                         prefix: Text(symbol),
                                       ),
@@ -259,9 +276,11 @@ class CheckOutState extends State<CheckOut> {
                                       ],
                                       keyboardType: TextInputType.number,
                                       onChanged: (value) {
-                                        payments[index]['amount'] =
-                                            Helper().validateInput(value);
-                                        calculateMultiPayment();
+                                        if (value.isNotEmpty) {
+                                          payments[index]['amount'] =
+                                              Helper().validateInput(value);
+                                          calculateMultiPayment();
+                                        }
                                       }))
                             ],
                           ),
@@ -290,9 +309,7 @@ class CheckOutState extends State<CheckOut> {
                                     icon: Icon(
                                       Icons.arrow_drop_down,
                                     ),
-                                    value: paymentMethods.any((method) => method['name'] == payments[index]['method']) 
-                                        ? payments[index]['method'] 
-                                        : (paymentMethods.isNotEmpty ? paymentMethods.first['name'] : null),
+                                    value: payments[index]['method'],
                                     //index['tax_rate_id'],
                                     items: paymentMethods
                                         .map<DropdownMenuItem<String>>(
@@ -314,16 +331,17 @@ class CheckOutState extends State<CheckOut> {
                                       );
                                     }).toList(),
                                     onChanged: (newValue) {
-                                      paymentMethods.forEach((element) {
-                                        if (element['name'] == newValue) {
-                                          setState(() {
-                                            payments[index]['method'] =
-                                                newValue;
-                                            payments[index]['account_id'] =
-                                                element['account_id'];
-                                          });
+                                      if (newValue != null) {
+                                        for (var element in paymentMethods) {
+                                          if (element['name'] == newValue) {
+                                            setState(() {
+                                              payments[index]['method'] = newValue;
+                                              payments[index]['account_id'] = element['account_id'];
+                                            });
+                                            break;
+                                          }
                                         }
-                                      });
+                                      }
                                     }),
                               )
                             ],
@@ -797,24 +815,23 @@ class CheckOutState extends State<CheckOut> {
     List payments =
         await System().get('payment_method', argument!['locationId']);
     
-    // Clear existing payment methods to prevent duplicates
-    setState(() {
-      paymentMethods.clear();
-    });
+    List<Map<String, dynamic>> newPaymentMethods = [];
     
     payments.forEach((element) {
-      if (this.mounted) {
-        setState(() {
-          paymentMethods.add({
-            'name': element['name'],
-            'value': element['label'],
-            'account_id': (element['account_id'] != null)
-                ? int.parse(element['account_id'].toString())
-                : null
-          });
-        });
-      }
+      newPaymentMethods.add({
+        'name': element['name'],
+        'value': element['label'],
+        'account_id': (element['account_id'] != null)
+            ? int.parse(element['account_id'].toString())
+            : null
+      });
     });
+    
+    if (this.mounted) {
+      setState(() {
+        paymentMethods = newPaymentMethods;
+      });
+    }
   }
 
   //on submit
@@ -1049,11 +1066,15 @@ class CheckOutState extends State<CheckOut> {
                 foregroundColor: themeData.colorScheme.onError),
             onPressed: () {
               Navigator.pop(context);
-              if (sellId != null && payments[index]['id'] != null) {
-                deletedPaymentId.add(payments[index]['id']);
+              if (index < payments.length) {
+                if (sellId != null && payments[index]['id'] != null) {
+                  deletedPaymentId.add(payments[index]['id']);
+                }
+                setState(() {
+                  payments.removeAt(index);
+                });
+                calculateMultiPayment();
               }
-              payments.removeAt(index);
-              calculateMultiPayment();
             },
             child: Text(AppLocalizations.of(context).translate('ok')))
       ],

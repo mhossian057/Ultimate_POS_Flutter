@@ -239,26 +239,85 @@ class _ProductsState extends State<Products> {
   }
 
   Widget _buildCartButton() {
-    return badges.Badge(
-      badgeStyle: badges.BadgeStyle(
-        badgeColor: themeData.colorScheme.error,
-        shape: badges.BadgeShape.circle,
-        borderRadius: BorderRadius.circular(MySize.size20!),
+    return Container(
+      margin: EdgeInsets.only(right: MySize.size8!),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(MySize.size20!),
+          onTap: _onCartPressed,
+          child: Container(
+            padding: EdgeInsets.all(MySize.size8!),
+            child: Stack(
+              children: [
+                // Cart Icon
+                Container(
+                  padding: EdgeInsets.all(MySize.size8!),
+                  child: Icon(
+                    Icons.shopping_cart,
+                    size: MySize.size28,
+                    color: themeData.colorScheme.onSurface,
+                  ),
+                ),
+                // Badge Counter - Bottom Left Position
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  child: FutureBuilder(
+                    future: (argument != null && argument!['sellId'] != null)
+                        ? getCartItemCount(sellId: argument!['sellId'])
+                        : getCartItemCount(isCompleted: 0),
+                    builder: (context, AsyncSnapshot<String> snapshot) {
+                      final count = snapshot.hasData ? snapshot.data! : "0";
+                      final countInt = int.tryParse(count) ?? 0;
+                      
+                      // Only show badge if count > 0
+                      if (countInt <= 0) {
+                        return SizedBox.shrink();
+                      }
+                      
+                      return AnimatedContainer(
+                        duration: Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        decoration: BoxDecoration(
+                          color: themeData.colorScheme.error,
+                          borderRadius: BorderRadius.circular(MySize.size10!),
+                          boxShadow: [
+                            BoxShadow(
+                              color: themeData.colorScheme.error.withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        constraints: BoxConstraints(
+                          minWidth: MySize.size18!,
+                          minHeight: MySize.size18!,
+                        ),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: MySize.size4!,
+                          vertical: MySize.size2!,
+                        ),
+                        child: Center(
+                          child: Text(
+                            count,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: MySize.size10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      position: badges.BadgePosition.topStart(start: 5.0, top: 5.0),
-      badgeContent: FutureBuilder(
-          future: (argument != null && argument!['sellId'] != null)
-              ? getCartItemCount(sellId: argument!['sellId'])
-              : getCartItemCount(isCompleted: 0),
-          builder: (context, AsyncSnapshot<String> snapshot) {
-            return Center(
-              child: Text(snapshot.hasData ? '${snapshot.data}' : "0",
-                  style: TextStyle(color: Colors.white)),
-            );
-          }),
-      child: IconButton(
-          icon: Icon(Icons.shopping_cart),
-          onPressed: _onCartPressed),
     );
   }
 
