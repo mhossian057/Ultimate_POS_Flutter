@@ -923,79 +923,81 @@ class CheckOutState extends State<CheckOut> {
 
   //print option
   printOption(sellId) async {
-    Timer(Duration(seconds: 2), () async {
+    try {
       List sellDetail = await SellDatabase().getSellBySellId(sellId);
       String? invoice = sellDetail[0]['invoice_url'];
       String invoiceNo = sellDetail[0]['invoice_no'];
+      
       //print invoice
       if (_printInvoice) {
         if (printWebInvoice && invoice != null) {
-          final response = await http.Client().get(Uri.parse(invoice));
-          if (response.statusCode == 200) {
+          try {
+            final response = await http.Client().get(Uri.parse(invoice)).timeout(Duration(seconds: 10));
+            if (response.statusCode == 200) {
+              await Helper()
+                  .printDocument(sellId, argument!['taxId'], context,
+                      invoice: response.body);
+            } else {
+              await Helper()
+                  .printDocument(sellId, argument!['taxId'], context);
+            }
+          } catch (e) {
+            print('Error fetching web invoice: $e');
             await Helper()
-                .printDocument(sellId, argument!['taxId'], context,
-                    invoice: response.body)
-                .then((value) {
-              Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  (argument!['sellId'] == null) ? '/products' : '/sale',
-                  ModalRoute.withName('/home'));
-            });
-          } else {
-            await Helper()
-                .printDocument(sellId, argument!['taxId'], context)
-                .then((value) {
-              Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  (argument!['sellId'] == null) ? '/products' : '/sale',
-                  ModalRoute.withName('/home'));
-            });
+                .printDocument(sellId, argument!['taxId'], context);
           }
         } else {
-          Helper()
-              .printDocument(sellId, argument!['taxId'], context)
-              .then((value) {
-            Navigator.pushNamedAndRemoveUntil(
-                context,
-                (argument!['sellId'] == null) ? '/products' : '/sale',
-                ModalRoute.withName('/home'));
-          });
+          await Helper()
+              .printDocument(sellId, argument!['taxId'], context);
         }
+        // Navigate after printing
+        Navigator.pushNamedAndRemoveUntil(
+            context,
+            (argument!['sellId'] == null) ? '/products' : '/sale',
+            ModalRoute.withName('/home'));
       } else {
+        // Share path
         if (printWebInvoice && invoice != null) {
-          final response = await http.Client().get(Uri.parse(invoice));
-          if (response.statusCode == 200) {
+          try {
+            final response = await http.Client().get(Uri.parse(invoice)).timeout(Duration(seconds: 10));
+            if (response.statusCode == 200) {
+              await Helper()
+                  .savePdf(sellId, argument!['taxId'], context, invoiceNo,
+                      invoice: response.body);
+            } else {
+              await Helper()
+                  .savePdf(sellId, argument!['taxId'], context, invoiceNo);
+            }
+          } catch (e) {
+            print('Error fetching web invoice: $e');
             await Helper()
-                .savePdf(sellId, argument!['taxId'], context, invoiceNo,
-                    invoice: response.body)
-                .then((value) {
-              Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  (argument!['sellId'] == null) ? '/products' : '/sale',
-                  ModalRoute.withName('/home'));
-            });
-          } else {
-            await Helper()
-                .savePdf(sellId, argument!['taxId'], context, invoiceNo)
-                .then((value) {
-              Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  (argument!['sellId'] == null) ? '/products' : '/sale',
-                  ModalRoute.withName('/home'));
-            });
+                .savePdf(sellId, argument!['taxId'], context, invoiceNo);
           }
         } else {
-          Helper()
-              .savePdf(sellId, argument!['taxId'], context, invoiceNo)
-              .then((value) {
-            Navigator.pushNamedAndRemoveUntil(
-                context,
-                (argument!['sellId'] == null) ? '/products' : '/sale',
-                ModalRoute.withName('/home'));
-          });
+          await Helper()
+              .savePdf(sellId, argument!['taxId'], context, invoiceNo);
         }
+        
+        // Navigate to home after successful sharing
+        Navigator.pushNamedAndRemoveUntil(
+            context,
+            (argument!['sellId'] == null) ? '/products' : '/sale',
+            ModalRoute.withName('/home'));
       }
-    });
+    } catch (e) {
+      print('Error in printOption: $e');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error processing invoice. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   //alert dialog for amount pending

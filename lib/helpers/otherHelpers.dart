@@ -274,16 +274,9 @@ class Helper {
       
       if (invoice != null) {
         // This is a server-generated invoice, try to fix CORS and convert HTML
-        print('Attempting to fix CORS issues for server invoice HTML conversion');
         try {
-          print('Server invoice detected, skipping HTML conversion to avoid CORS');
-          print('Using enhanced PDF generation with complete invoice data');
-          
           // For server invoices, always use the fallback to avoid CORS issues completely
-          // The fallback PDF now has the exact same content and layout as the HTML version
           pdfBytes = await _createBasicInvoicePdf(sellId, taxId, context, invoiceNo);
-          
-          print('Successfully generated PDF with complete invoice data');
         } catch (e) {
           print('PDF generation failed: $e');
           // Last resort: create a minimal PDF
@@ -296,16 +289,8 @@ class Helper {
           pdfBytes = await doc.save();
         }
       } else {
-        // Local invoice generation, try HTML conversion with fallback
-        try {
-          pdfBytes = await Printing.convertHtml(
-            format: PdfPageFormat.a4,
-            html: _invoice,
-          );
-        } catch (e) {
-          print('HTML conversion failed: $e');
-          pdfBytes = await _createBasicInvoicePdf(sellId, taxId, context, invoiceNo);
-        }
+        // Skip HTML conversion due to hanging issues, use basic PDF generation directly
+        pdfBytes = await _createBasicInvoicePdf(sellId, taxId, context, invoiceNo);
       }
       
       // Save to temporary directory for sharing
