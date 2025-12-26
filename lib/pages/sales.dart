@@ -41,6 +41,10 @@ class _SalesState extends State<Sales> {
       canDeleteSell = false,
       showFilter = false,
       changeUrl = false;
+  Set<int> printingItems = {};
+  Set<int> sharingItems = {};
+  Set<int> printingAllSalesItems = {};
+  Set<int> sharingAllSalesItems = {};
   Map<dynamic, dynamic> selectedLocation = {'id': 0, 'name': 'All'},
       selectedCustomer = {'id': 0, 'name': 'All', 'mobile': ''};
   String selectedPaymentStatus = 'all';
@@ -1032,64 +1036,128 @@ class _SalesState extends State<Sales> {
                             })
                         : Container(),
                     IconButton(
-                        icon: Icon(
-                          MdiIcons.printerWireless,
-                          color: Colors.deepPurple,
-                        ),
-                        onPressed: () async {
-                          if (await Helper().checkConnectivity() &&
-                              sellList[index]['invoice_url'] != null) {
-                            final response = await http.Client()
-                                .get(Uri.parse(sellList[index]['invoice_url']));
-                            if (response.statusCode == 200) {
-                              await Helper().printDocument(
-                                  sellList[index]['id'],
-                                  sellList[index]['tax_rate_id'],
-                                  context,
-                                  invoice: response.body);
-                            } else {
-                              await Helper().printDocument(
-                                  sellList[index]['id'],
-                                  sellList[index]['tax_rate_id'],
-                                  context);
-                            }
-                          } else {
-                            await Helper().printDocument(sellList[index]['id'],
-                                sellList[index]['tax_rate_id'], context);
-                          }
-                        }),
+                        icon: printingItems.contains(sellList[index]['id'])
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                                ),
+                              )
+                            : Icon(
+                                MdiIcons.printerWireless,
+                                color: Colors.deepPurple,
+                              ),
+                        onPressed: printingItems.contains(sellList[index]['id'])
+                            ? null
+                            : () async {
+                                int sellId = sellList[index]['id'];
+                                setState(() {
+                                  printingItems.add(sellId);
+                                });
+                                
+                                try {
+                                  showDialog(
+                                    barrierDismissible: false,
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return AlertDialog(
+                                        content: Row(
+                                          children: [
+                                            CircularProgressIndicator(),
+                                            Container(
+                                                margin: EdgeInsets.only(left: 15),
+                                                child: Text('Generating Invoice...')),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  );
+                                  
+                                  await Helper().printDocument(
+                                      sellList[index]['id'],
+                                      sellList[index]['tax_rate_id'],
+                                      context);
+                                      
+                                  Navigator.pop(context); // Close loading dialog
+                                } catch (e) {
+                                  Navigator.pop(context); // Close loading dialog
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(AppLocalizations.of(context)
+                                          .translate('something_went_wrong')),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                } finally {
+                                  setState(() {
+                                    printingItems.remove(sellId);
+                                  });
+                                }
+                              }),
                     IconButton(
-                        icon: Icon(
-                          MdiIcons.shareVariant,
-                          color: themeData.colorScheme.primary,
-                        ),
-                        onPressed: () async {
-                          if (await Helper().checkConnectivity() &&
-                              sellList[index]['invoice_url'] != null) {
-                            final response = await http.Client()
-                                .get(Uri.parse(sellList[index]['invoice_url']));
-                            if (response.statusCode == 200) {
-                              await Helper().savePdf(
-                                  sellList[index]['id'],
-                                  sellList[index]['tax_rate_id'],
-                                  context,
-                                  sellList[index]['invoice_no'],
-                                  invoice: response.body);
-                            } else {
-                              await Helper().savePdf(
-                                  sellList[index]['id'],
-                                  sellList[index]['tax_rate_id'],
-                                  context,
-                                  sellList[index]['invoice_no']);
-                            }
-                          } else {
-                            await Helper().savePdf(
-                                sellList[index]['id'],
-                                sellList[index]['tax_rate_id'],
-                                context,
-                                sellList[index]['invoice_no']);
-                          }
-                        }),
+                        icon: sharingItems.contains(sellList[index]['id'])
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(themeData.colorScheme.primary),
+                                ),
+                              )
+                            : Icon(
+                                MdiIcons.shareVariant,
+                                color: themeData.colorScheme.primary,
+                              ),
+                        onPressed: sharingItems.contains(sellList[index]['id'])
+                            ? null
+                            : () async {
+                                int sellId = sellList[index]['id'];
+                                setState(() {
+                                  sharingItems.add(sellId);
+                                });
+                                
+                                try {
+                                  showDialog(
+                                    barrierDismissible: false,
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return AlertDialog(
+                                        content: Row(
+                                          children: [
+                                            CircularProgressIndicator(),
+                                            Container(
+                                                margin: EdgeInsets.only(left: 15),
+                                                child: Text('Preparing Invoice...')),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  );
+                                  
+                                  await Helper().savePdf(
+                                      sellList[index]['id'],
+                                      sellList[index]['tax_rate_id'],
+                                      context,
+                                      sellList[index]['invoice_no']);
+                                      
+                                  Navigator.pop(context); // Close loading dialog
+                                } catch (e) {
+                                  Navigator.pop(context); // Close loading dialog
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(AppLocalizations.of(context)
+                                          .translate('something_went_wrong')),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                } finally {
+                                  setState(() {
+                                    sharingItems.remove(sellId);
+                                  });
+                                }
+                              }),
                     ((sellList[index]['pending_amount'] > 0) && canEditSell)
                         ? IconButton(
                             icon: Icon(
@@ -1363,61 +1431,138 @@ class _SalesState extends State<Sales> {
                           visible:
                               allSalesListMap[index]['invoice_url'] != null,
                           child: IconButton(
-                              icon: Icon(
-                                MdiIcons.printerWireless,
-                                color: Colors.deepPurple,
-                              ),
-                              onPressed: () async {
-                                if (await Helper().checkConnectivity()) {
-                                  final response = await http.Client().get(
-                                      Uri.parse(allSalesListMap[index]
-                                          ['invoice_url']));
-                                  if (response.statusCode == 200) {
-                                    await Helper().printDocument(0, 0, context,
-                                        invoice: response.body);
-                                  } else {
-                                    Fluttertoast.showToast(
-                                        msg: AppLocalizations.of(context)
-                                            .translate('something_went_wrong'));
-                                  }
-                                } else {
-                                  Fluttertoast.showToast(
-                                      msg: AppLocalizations.of(context)
-                                          .translate('check_connectivity'));
-                                }
-                              }),
+                              icon: printingAllSalesItems.contains(allSalesListMap[index]['id'])
+                                  ? SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                                      ),
+                                    )
+                                  : Icon(
+                                      MdiIcons.printerWireless,
+                                      color: Colors.deepPurple,
+                                    ),
+                              onPressed: printingAllSalesItems.contains(allSalesListMap[index]['id'])
+                                  ? null
+                                  : () async {
+                                      int salesId = allSalesListMap[index]['id'];
+                                      setState(() {
+                                        printingAllSalesItems.add(salesId);
+                                      });
+                                      
+                                      try {
+                                        showDialog(
+                                          barrierDismissible: false,
+                                          context: context,
+                                          builder: (BuildContext context) {
+                                            return AlertDialog(
+                                              content: Row(
+                                                children: [
+                                                  CircularProgressIndicator(),
+                                                  Container(
+                                                      margin: EdgeInsets.only(left: 15),
+                                                      child: Text('Generating Invoice...')),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        );
+                                        
+                                        if (await Helper().checkConnectivity()) {
+                                          await Helper().printDocument(0, 0, context);
+                                        } else {
+                                          Fluttertoast.showToast(
+                                              msg: AppLocalizations.of(context)
+                                                  .translate('check_connectivity'));
+                                        }
+                                        
+                                        Navigator.pop(context); // Close loading dialog
+                                      } catch (e) {
+                                        Navigator.pop(context); // Close loading dialog
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(AppLocalizations.of(context)
+                                                .translate('something_went_wrong')),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      } finally {
+                                        setState(() {
+                                          printingAllSalesItems.remove(salesId);
+                                        });
+                                      }
+                                    }),
                         ),
                         Visibility(
                           visible:
                               allSalesListMap[index]['invoice_url'] != null,
                           child: IconButton(
-                              icon: Icon(
-                                MdiIcons.shareVariant,
-                                color: themeData.colorScheme.primary,
-                              ),
-                              onPressed: () async {
-                                if (await Helper().checkConnectivity()) {
-                                  // print(allSalesListMap[index]
-                                  // ['invoice_url']);
-                                  final response = await http.Client().get(
-                                      Uri.parse(allSalesListMap[index]
-                                          ['invoice_url']));
-                                  // print(response.body);
-                                  if (response.statusCode == 200) {
-                                    await Helper().savePdf(0, 0, context,
-                                        allSalesListMap[index]['invoice_no'],
-                                        invoice: response.body);
-                                  } else {
-                                    Fluttertoast.showToast(
-                                        msg: AppLocalizations.of(context)
-                                            .translate('something_went_wrong'));
-                                  }
-                                } else {
-                                  Fluttertoast.showToast(
-                                      msg: AppLocalizations.of(context)
-                                          .translate('check_connectivity'));
-                                }
-                              }),
+                              icon: sharingAllSalesItems.contains(allSalesListMap[index]['id'])
+                                  ? SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(themeData.colorScheme.primary),
+                                      ),
+                                    )
+                                  : Icon(
+                                      MdiIcons.shareVariant,
+                                      color: themeData.colorScheme.primary,
+                                    ),
+                              onPressed: sharingAllSalesItems.contains(allSalesListMap[index]['id'])
+                                  ? null
+                                  : () async {
+                                      int salesId = allSalesListMap[index]['id'];
+                                      setState(() {
+                                        sharingAllSalesItems.add(salesId);
+                                      });
+                                      
+                                      try {
+                                        showDialog(
+                                          barrierDismissible: false,
+                                          context: context,
+                                          builder: (BuildContext context) {
+                                            return AlertDialog(
+                                              content: Row(
+                                                children: [
+                                                  CircularProgressIndicator(),
+                                                  Container(
+                                                      margin: EdgeInsets.only(left: 15),
+                                                      child: Text('Preparing Invoice...')),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        );
+                                        
+                                        if (await Helper().checkConnectivity()) {
+                                          await Helper().savePdf(0, 0, context,
+                                              allSalesListMap[index]['invoice_no']);
+                                        } else {
+                                          Fluttertoast.showToast(
+                                              msg: AppLocalizations.of(context)
+                                                  .translate('check_connectivity'));
+                                        }
+                                        
+                                        Navigator.pop(context); // Close loading dialog
+                                      } catch (e) {
+                                        Navigator.pop(context); // Close loading dialog
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(AppLocalizations.of(context)
+                                                .translate('something_went_wrong')),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      } finally {
+                                        setState(() {
+                                          sharingAllSalesItems.remove(salesId);
+                                        });
+                                      }
+                                    }),
                         ),
                         Visibility(
                           visible: (allSalesListMap[index]['mobile'] != null &&
