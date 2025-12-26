@@ -185,9 +185,9 @@ class Helper {
 
   //function for formatting invoice
   Future<void> printDocument(sellId, taxId, context, {invoice}) async {
-    String _invoice = (invoice != null)
-        ? invoice
-        : await InvoiceFormatter().generateInvoice(sellId, taxId, context);
+    // Always use local invoice generation to ensure tax-excluded pricing consistency
+    // regardless of whether we have a server invoice or not
+    String _invoice = await InvoiceFormatter().generateInvoice(sellId, taxId, context);
     Printing.layoutPdf(onLayout: (pageFormat) async {
       final doc = pw.Document();
       await Printing.layoutPdf(
@@ -264,34 +264,9 @@ class Helper {
   //share invoice
   savePdf(sellId, taxId, context, invoiceNo, {invoice}) async {
     try {
-      // Use the same invoice generation logic as printDocument
-      String _invoice = (invoice != null)
-          ? invoice
-          : await InvoiceFormatter().generateInvoice(sellId, taxId, context);
-      
-      // Generate PDF bytes with CORS bypass for server invoices
-      late Uint8List pdfBytes;
-      
-      if (invoice != null) {
-        // This is a server-generated invoice, try to fix CORS and convert HTML
-        try {
-          // For server invoices, always use the fallback to avoid CORS issues completely
-          pdfBytes = await _createBasicInvoicePdf(sellId, taxId, context, invoiceNo);
-        } catch (e) {
-          print('PDF generation failed: $e');
-          // Last resort: create a minimal PDF
-          final doc = pw.Document();
-          doc.addPage(pw.Page(
-            build: (context) => pw.Center(
-              child: pw.Text('Invoice: ${invoiceNo ?? 'N/A'}\nGeneration Error: Please try again'),
-            ),
-          ));
-          pdfBytes = await doc.save();
-        }
-      } else {
-        // Skip HTML conversion due to hanging issues, use basic PDF generation directly
-        pdfBytes = await _createBasicInvoicePdf(sellId, taxId, context, invoiceNo);
-      }
+      // Always use local PDF generation to ensure tax-excluded pricing consistency
+      // regardless of whether we have a server invoice or not
+      Uint8List pdfBytes = await _createBasicInvoicePdf(sellId, taxId, context, invoiceNo);
       
       // Save to temporary directory for sharing
       final directory = await getTemporaryDirectory();
@@ -359,8 +334,19 @@ class Helper {
     
     for (var line in sellLines) {
       double qty = (line['quantity'] ?? 0).toDouble();
-      double price = (line['unit_price'] ?? 0).toDouble();
-      subTotal += qty * price;
+      double unitPrice = (line['unit_price'] ?? 0).toDouble();
+      double discountAmount = (line['discount_amount'] ?? 0).toDouble();
+      String discountType = line['discount_type'] ?? 'fixed';
+      
+      // Calculate price excluding tax (after discount but before tax)
+      double priceExcludingTax;
+      if (discountType == 'fixed') {
+        priceExcludingTax = unitPrice - discountAmount;
+      } else {
+        priceExcludingTax = unitPrice - (unitPrice * discountAmount / 100);
+      }
+      
+      subTotal += qty * priceExcludingTax;
     }
     
     for (var payment in paymentLines) {
@@ -499,8 +485,19 @@ class Helper {
                   // Table Rows
                   ...sellLines.map((line) {
                     double qty = (line['quantity'] ?? 0).toDouble();
-                    double price = (line['unit_price'] ?? 0).toDouble();
-                    double total = qty * price;
+                    double unitPrice = (line['unit_price'] ?? 0).toDouble();
+                    double discountAmount = (line['discount_amount'] ?? 0).toDouble();
+                    String discountType = line['discount_type'] ?? 'fixed';
+                    
+                    // Calculate price excluding tax (after discount but before tax)
+                    double priceExcludingTax;
+                    if (discountType == 'fixed') {
+                      priceExcludingTax = unitPrice - discountAmount;
+                    } else {
+                      priceExcludingTax = unitPrice - (unitPrice * discountAmount / 100);
+                    }
+                    
+                    double totalExcludingTax = qty * priceExcludingTax;
                     String productName = line['name'] ?? line['display_name'] ?? 'Product';
                     
                     return pw.Container(
@@ -509,8 +506,8 @@ class Helper {
                         children: [
                           pw.Expanded(flex: 3, child: pw.Text(productName, style: pw.TextStyle(fontSize: 11))),
                           pw.Expanded(flex: 1, child: pw.Text(formatQuantity(qty), style: pw.TextStyle(fontSize: 11), textAlign: pw.TextAlign.center)),
-                          pw.Expanded(flex: 2, child: pw.Text('${businessDetails['symbol']} ${formatCurrency(price)}', style: pw.TextStyle(fontSize: 11), textAlign: pw.TextAlign.right)),
-                          pw.Expanded(flex: 2, child: pw.Text('${businessDetails['symbol']} ${formatCurrency(total)}', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
+                          pw.Expanded(flex: 2, child: pw.Text('${businessDetails['symbol']} ${formatCurrency(priceExcludingTax)}', style: pw.TextStyle(fontSize: 11), textAlign: pw.TextAlign.right)),
+                          pw.Expanded(flex: 2, child: pw.Text('${businessDetails['symbol']} ${formatCurrency(totalExcludingTax)}', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
                         ],
                       ),
                     );
