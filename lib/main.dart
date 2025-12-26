@@ -8,6 +8,7 @@ import 'helpers/AppTheme.dart';
 import 'helpers/routes.dart';
 import 'helpers/api_logger.dart';
 import 'locale/MyLocalizations.dart';
+import 'providers/previous_price_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,8 +28,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<AppLanguage>(
-      create: (_) => appLanguage!,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AppLanguage>(
+          create: (_) => appLanguage!,
+        ),
+        ChangeNotifierProvider<PreviousPriceProvider>(
+          create: (_) => PreviousPriceProvider(),
+        ),
+      ],
       child: Consumer<AppLanguage>(builder: (context, model, child) {
         return MaterialApp(
           routes: Routes.generateRoute(),
