@@ -220,5 +220,15 @@
   "no_price_group_selected": "No price group selected",
   "default_price_group": "Default price group",
   "group_prices": "group prices",
-  "change_selling_price_group": "Change selling price group ?"
+  "change_selling_price_group": "Change selling price group ?",
+  "cart_products": "Cart Products",
+  "no_products_in_cart": "No products in cart",
+  "current_price": "Current Price",
+  "previous_price": "Previous Price", 
+  "not_available": "Not Available",
+  "no_previous_purchase": "No Previous Purchase",
+  "price_inc_tax": "Price Inc. Tax",
+  "same_price": "Same Price",
+  "price_increased": "Price Increased",
+  "price_decreased": "Price Decreased"
 }
