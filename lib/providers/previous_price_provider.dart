@@ -8,6 +8,7 @@ class PreviousPriceProvider extends ChangeNotifier {
   Map<String, dynamic>? _previousPriceData;
   bool _isLoading = false;
   String? _error;
+  bool _isDisposed = false;
 
   Map<String, dynamic>? get previousPriceData => _previousPriceData;
   bool get isLoading => _isLoading;
@@ -18,6 +19,8 @@ class PreviousPriceProvider extends ChangeNotifier {
     required int customerId,
     required int locationId,
   }) async {
+    if (_isDisposed) return; // Don't proceed if disposed
+    
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -29,14 +32,18 @@ class PreviousPriceProvider extends ChangeNotifier {
         locationId: locationId,
       );
 
-      _previousPriceData = result;
-      _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) { // Check if still mounted before updating
+        _previousPriceData = result;
+        _isLoading = false;
+        notifyListeners();
+      }
     } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      _previousPriceData = null;
-      notifyListeners();
+      if (!_isDisposed) { // Check if still mounted before updating
+        _error = e.toString();
+        _isLoading = false;
+        _previousPriceData = null;
+        notifyListeners();
+      }
     }
   }
 
@@ -62,4 +69,10 @@ class PreviousPriceProvider extends ChangeNotifier {
   String? get transactionId => _previousPriceData?['transaction_id']?.toString();
 
   bool get hasPreviousPrice => _previousPriceData != null;
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
 }

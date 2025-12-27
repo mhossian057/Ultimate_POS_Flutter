@@ -1,0 +1,218 @@
+import 'package:flutter/material.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../helpers/AppTheme.dart';
+import '../../../helpers/SizeConfig.dart';
+import '../../../helpers/otherHelpers.dart';
+import '../../../locale/MyLocalizations.dart';
+import '../../../apis/sell.dart';
+
+class AllSalesActionButtons extends StatelessWidget {
+  final Map<String, dynamic> salesItem;
+  final int index;
+  final bool canDeleteSell;
+  final Set<int> printingAllSalesItems;
+  final Set<int> sharingAllSalesItems;
+  final Function(int) onPrintingStateChanged;
+  final Function(int) onSharingStateChanged;
+  final Function(int) onDeleteItem;
+  final ThemeData themeData;
+
+  const AllSalesActionButtons({
+    Key? key,
+    required this.salesItem,
+    required this.index,
+    required this.canDeleteSell,
+    required this.printingAllSalesItems,
+    required this.sharingAllSalesItems,
+    required this.onPrintingStateChanged,
+    required this.onSharingStateChanged,
+    required this.onDeleteItem,
+    required this.themeData,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (canDeleteSell) _buildDeleteButton(context),
+        if (salesItem['invoice_url'] != null) _buildPrintButton(context),
+        if (salesItem['invoice_url'] != null) _buildShareButton(context),
+        if (salesItem['mobile'] != null &&
+            salesItem['status'].toString().toLowerCase() != 'paid')
+          _buildCallButton(context),
+      ],
+    );
+  }
+
+  Widget _buildDeleteButton(BuildContext context) {
+    return IconButton(
+      icon: Icon(MdiIcons.deleteOutline, color: Colors.red),
+      onPressed: () => _showDeleteDialog(context),
+    );
+  }
+
+  Widget _buildPrintButton(BuildContext context) {
+    int salesId = salesItem['id'];
+    return IconButton(
+      icon: printingAllSalesItems.contains(salesId)
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+              ),
+            )
+          : Icon(MdiIcons.printerWireless, color: Colors.deepPurple),
+      onPressed: printingAllSalesItems.contains(salesId)
+          ? null
+          : () => _handlePrint(context, salesId),
+    );
+  }
+
+  Widget _buildShareButton(BuildContext context) {
+    int salesId = salesItem['id'];
+    return IconButton(
+      icon: sharingAllSalesItems.contains(salesId)
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(themeData.colorScheme.primary),
+              ),
+            )
+          : Icon(MdiIcons.shareVariant, color: themeData.colorScheme.primary),
+      onPressed: sharingAllSalesItems.contains(salesId)
+          ? null
+          : () => _handleShare(context, salesId),
+    );
+  }
+
+  Widget _buildCallButton(BuildContext context) {
+    return IconButton(
+      icon: Icon(Icons.call_outlined, color: Colors.green),
+      onPressed: () async {
+        await launch('tel:${salesItem['mobile']}');
+      },
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Icon(MdiIcons.alert, color: Colors.red, size: MySize.size50),
+          content: Text(
+              AppLocalizations.of(context).translate('are_you_sure'),
+              textAlign: TextAlign.center,
+              style: AppTheme.getTextStyle(
+                  themeData.textTheme.bodyLarge,
+                  color: themeData.colorScheme.onBackground,
+                  fontWeight: 600,
+                  muted: true)),
+          actions: <Widget>[
+            TextButton(
+                style: TextButton.styleFrom(
+                    backgroundColor: themeData.colorScheme.onPrimary,
+                    foregroundColor: themeData.colorScheme.primary),
+                onPressed: () => Navigator.pop(context),
+                child: Text(AppLocalizations.of(context).translate('cancel'))),
+            TextButton(
+                style: TextButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: themeData.colorScheme.onError),
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await SellApi().delete(salesItem['id']).then((value) {
+                    if (value != null) {
+                      onDeleteItem(index);
+                      Fluttertoast.showToast(msg: '${value['msg']}');
+                    }
+                  });
+                },
+                child: Text(AppLocalizations.of(context).translate('ok')))
+          ],
+        );
+      },
+    );
+  }
+
+  void _handlePrint(BuildContext context, int salesId) async {
+    onPrintingStateChanged(salesId);
+    
+    try {
+      _showLoadingDialog(context, 'Generating Invoice...');
+      
+      if (await Helper().checkConnectivity()) {
+        await Helper().printDocument(0, 0, context);
+      } else {
+        Fluttertoast.showToast(
+            msg: AppLocalizations.of(context).translate('check_connectivity'));
+      }
+      
+      Navigator.pop(context);
+    } catch (e) {
+      Navigator.pop(context);
+      _showErrorSnackbar(context);
+    } finally {
+      onPrintingStateChanged(salesId);
+    }
+  }
+
+  void _handleShare(BuildContext context, int salesId) async {
+    onSharingStateChanged(salesId);
+    
+    try {
+      _showLoadingDialog(context, 'Preparing Invoice...');
+      
+      if (await Helper().checkConnectivity()) {
+        await Helper().savePdf(0, 0, context, salesItem['invoice_no']);
+      } else {
+        Fluttertoast.showToast(
+            msg: AppLocalizations.of(context).translate('check_connectivity'));
+      }
+      
+      Navigator.pop(context);
+    } catch (e) {
+      Navigator.pop(context);
+      _showErrorSnackbar(context);
+    } finally {
+      onSharingStateChanged(salesId);
+    }
+  }
+
+  void _showLoadingDialog(BuildContext context, String message) {
+    showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              Container(
+                  margin: EdgeInsets.only(left: 15),
+                  child: Text(message)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showErrorSnackbar(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.of(context)
+            .translate('something_went_wrong')),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+}

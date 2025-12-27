@@ -149,7 +149,7 @@ class _CustomerCartProductListState extends State<CustomerCartProductList> {
         builder: (context, provider, child) {
           // Load previous price when widget is built
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!provider.isLoading && !provider.hasPreviousPrice && provider.error == null) {
+            if (mounted && !provider.isLoading && !provider.hasPreviousPrice && provider.error == null) {
               provider.fetchPreviousPrice(
                 variationId: item['variation_id'] ?? 0,
                 customerId: widget.customerId,
@@ -180,9 +180,9 @@ class _CustomerCartProductListState extends State<CustomerCartProductList> {
                         
                         SizedBox(height: MySize.size8!),
                         
-                        // Current Price
+                        // Current Price (inc. VAT)
                         Text(
-                          '${AppLocalizations.of(context).translate('current_price')}: ${item['unit_price'] ?? 0.0}',
+                          '${AppLocalizations.of(context).translate('current_price_inc_vat')}: ${(item['sell_price_inc_tax'] ?? item['unit_price'] ?? 0.0).toStringAsFixed(2)}',
                           style: AppTheme.getTextStyle(
                             themeData.textTheme.bodyMedium,
                             fontWeight: 600,
@@ -192,12 +192,12 @@ class _CustomerCartProductListState extends State<CustomerCartProductList> {
                         
                         SizedBox(height: MySize.size4!),
                         
-                        // Previous Price
+                        // Previous Price (inc. VAT)
                         if (provider.isLoading)
                           Row(
                             children: [
                               Text(
-                                '${AppLocalizations.of(context).translate('previous_price')}: ',
+                                '${AppLocalizations.of(context).translate('previous_price_inc_vat')}: ',
                                 style: AppTheme.getTextStyle(themeData.textTheme.bodyMedium),
                               ),
                               SizedBox(
@@ -212,7 +212,7 @@ class _CustomerCartProductListState extends State<CustomerCartProductList> {
                           )
                         else if (provider.hasPreviousPrice)
                           Text(
-                            '${AppLocalizations.of(context).translate('previous_price')}: ${provider.unitPrice ?? 0.0}',
+                            '${AppLocalizations.of(context).translate('previous_price_inc_vat')}: ${(provider.unitPriceIncTax ?? 0.0).toStringAsFixed(2)}',
                             style: AppTheme.getTextStyle(
                               themeData.textTheme.bodyMedium,
                               color: Colors.orange,
@@ -221,7 +221,7 @@ class _CustomerCartProductListState extends State<CustomerCartProductList> {
                           )
                         else
                           Text(
-                            '${AppLocalizations.of(context).translate('previous_price')}: ${AppLocalizations.of(context).translate('not_available')}',
+                            '${AppLocalizations.of(context).translate('previous_price_inc_vat')}: ${AppLocalizations.of(context).translate('not_available')}',
                             style: AppTheme.getTextStyle(
                               themeData.textTheme.bodyMedium,
                               color: Colors.grey,
