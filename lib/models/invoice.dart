@@ -84,11 +84,11 @@ class InvoiceFormatter {
                </td>
                
                <td width="20%" class="text-right">               
-                     <p>${Helper().formatCurrency(productPriceExcludingTax)}</p>
+                     <p>${Helper().formatCurrency(productPrice)}</p>
                </td>
                
                <td width="20%" class="text-right">               
-                     <p>${Helper().formatCurrency(totalProductsPriceExcludingTax)}</p>
+                     <p>${Helper().formatCurrency(totalProductsPrice)}</p>
                </td>
                
             </tr>
