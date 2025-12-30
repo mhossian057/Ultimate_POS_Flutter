@@ -19,6 +19,7 @@ import 'widgets/sales/sales_filter_widget.dart';
 import 'widgets/sales/recent_sales_item.dart';
 import 'widgets/sales/all_sales_item.dart';
 import 'widgets/sales/date_range_picker.dart';
+import 'widgets/sales/sales_shimmer_widget.dart';
 
 class Sales extends StatefulWidget {
   @override
@@ -35,7 +36,9 @@ class _SalesState extends State<Sales> {
       canEditSell = false,
       canDeleteSell = false,
       showFilter = false,
-      changeUrl = false;
+      changeUrl = false,
+      isLoadingPermissions = true,
+      isLoadingData = false;
   Set<int> printingItems = {};
   Set<int> sharingItems = {};
   Set<int> printingAllSalesItems = {};
@@ -177,7 +180,6 @@ class _SalesState extends State<Sales> {
         ? ListView.builder(
             padding: EdgeInsets.all(10),
             controller: _scrollController,
-            shrinkWrap: true,
             itemCount: sellList.length,
             itemBuilder: (context, index) {
               return RecentSalesItem(
@@ -201,6 +203,31 @@ class _SalesState extends State<Sales> {
   }
 
   Widget allSales() {
+    if (isLoadingPermissions || (canViewSell && isLoadingData)) {
+      return Column(
+        children: [
+          // Show filter shimmer
+          Container(
+            margin: EdgeInsets.symmetric(
+              horizontal: MySize.size16!,
+              vertical: MySize.size8!,
+            ),
+            height: 60,
+            decoration: BoxDecoration(
+              color: customAppTheme.bgLayer1,
+              borderRadius: BorderRadius.circular(MySize.size16!),
+              border: Border.all(
+                color: customAppTheme.bgLayer4,
+                width: 1.5,
+              ),
+            ),
+          ),
+          // Show sales shimmer
+          Expanded(child: SalesShimmerList()),
+        ],
+      );
+    }
+    
     return (canViewSell)
         ? Column(
             children: [
@@ -250,7 +277,8 @@ class _SalesState extends State<Sales> {
                     selectedCustomer = customerListMap[0];
                     startDateRange = null;
                     endDateRange = null;
-                    selectedPaymentStatus = paymentStatuses[0];
+                    // Reset to 'all' if available, otherwise first item
+                    selectedPaymentStatus = paymentStatuses.contains('all') ? 'all' : paymentStatuses[0];
                   });
                   onFilter();
                 },
@@ -262,7 +290,6 @@ class _SalesState extends State<Sales> {
                 child: (allSalesListMap.length > 0)
                     ? ListView.builder(
                         padding: EdgeInsets.all(10),
-                        shrinkWrap: true,
                         controller: _scrollController,
                         itemCount: allSalesListMap.length + 1,
                         itemBuilder: (context, index) {
@@ -289,7 +316,9 @@ class _SalesState extends State<Sales> {
                             );
                           }
                         })
-                    : Helper().noDataWidget(context),
+                    : isLoadingData 
+                        ? SalesShimmerList()  // Still loading data
+                        : Helper().noDataWidget(context),  // Actually no data
               )
             ],
           )
@@ -475,21 +504,26 @@ class _SalesState extends State<Sales> {
         canDeleteSell = true;
       }
     }
+    // Check all payment status permissions and collect them
     if (await Helper().getPermission("view_paid_sells_only")) {
       paymentStatuses.add('paid');
-      selectedPaymentStatus = 'paid';
     }
     if (await Helper().getPermission("view_due_sells_only")) {
       paymentStatuses.add('due');
-      selectedPaymentStatus = 'due';
     }
     if (await Helper().getPermission("view_partial_sells_only")) {
       paymentStatuses.add('partial');
-      selectedPaymentStatus = 'partial';
     }
     if (await Helper().getPermission("view_overdue_sells_only")) {
       paymentStatuses.add('overdue');
-      selectedPaymentStatus = 'overdue';
+    }
+    
+    // If user has multiple payment status permissions, default to 'all'
+    // If user has only one specific permission, use that
+    if (paymentStatuses.length > 2) {  // more than ['all', one_specific_status]
+      selectedPaymentStatus = 'all';
+    } else if (paymentStatuses.length == 2) {  // ['all', one_specific_status]
+      selectedPaymentStatus = paymentStatuses[1]; // use the specific status
     }
     if (await Helper().getPermission("direct_sell.view")) {
       url = Api().apiUrl + "sell?order_by_date=desc";
@@ -513,6 +547,13 @@ class _SalesState extends State<Sales> {
           canViewSell = true;
         });
       }
+    }
+    
+    // Mark permissions as loaded
+    if (mounted) {
+      setState(() {
+        isLoadingPermissions = false;
+      });
     }
   }
 
@@ -635,6 +676,7 @@ class _SalesState extends State<Sales> {
           allSalesListMap = [];
           changeUrl = false;
           showFilter = false;
+          isLoadingData = true; // Only show shimmer for initial data load
         }
         isLoading = false;
       });
@@ -683,5 +725,15 @@ class _SalesState extends State<Sales> {
         });
       }
     });
+    
+    // Mark data loading as complete only if it was an initial load
+    if (mounted) {
+      setState(() {
+        if (allSalesListMap.length <= sales.length) {
+          // This was an initial load, not pagination
+          isLoadingData = false;
+        }
+      });
+    }
   }
 }
