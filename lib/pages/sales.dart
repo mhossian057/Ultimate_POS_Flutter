@@ -717,7 +717,8 @@ class _SalesState extends State<Sales> {
         'invoice_amount': sell['final_total'],
         'status': sell['payment_status'] ?? sell['status'],
         'paid_amount': paidAmount,
-        'is_quotation': sell['is_quotation'].toString()
+        'is_quotation': sell['is_quotation'].toString(),
+        'tax_rate_id': sell['tax_rate_id'] ?? 0
       });
       if (this.mounted) {
         setState(() {

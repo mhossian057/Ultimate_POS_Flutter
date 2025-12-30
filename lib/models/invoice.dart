@@ -152,6 +152,9 @@ class InvoiceFormatter {
     setTax(taxId);
     String products = await generateProductDetails(sellId, context);
     List sells = await SellDatabase().getSellBySellId(sellId);
+    if (sells.isEmpty) {
+      throw Exception('No sell record found for sellId: $sellId');
+    }
     var customer =
         await Contact().getCustomerDetailById(sells[0]['contact_id']);
     var landmark = '',
@@ -188,19 +191,19 @@ class InvoiceFormatter {
       taxLabel = value['taxLabel'];
       taxNumber = value['taxNumber'];
     });
-    var customerName = customer['name'];
-    var customerAddress1 = (customer['address_line_1'] != null)
+    var customerName = customer != null ? customer['name'] : 'Unknown Customer';
+    var customerAddress1 = (customer != null && customer['address_line_1'] != null)
         ? customer['address_line_1'] + ','
         : '';
-    var customerAddress2 = (customer['address_line_2'] != null)
+    var customerAddress2 = (customer != null && customer['address_line_2'] != null)
         ? customer['address_line_2'] + ','
         : '';
-    var customerCity = (customer['city'] != null) ? customer['city'] + ',' : '';
+    var customerCity = (customer != null && customer['city'] != null) ? customer['city'] + ',' : '';
     var customerState =
-    (customer['state'] != null) ? customer['state'] + ',' : '';
+    (customer != null && customer['state'] != null) ? customer['state'] + ',' : '';
     var customerCountry =
-    (customer['country'] != null) ? customer['country'] : '';
-    var customerMobile = customer['mobile'];
+    (customer != null && customer['country'] != null) ? customer['country'] : '';
+    var customerMobile = customer != null ? customer['mobile'] : '';
     List paymentList =
     await PaymentDatabase().get(sells[0]['id'], allColumns: true);
     double totalPaidAmount = 0.0;

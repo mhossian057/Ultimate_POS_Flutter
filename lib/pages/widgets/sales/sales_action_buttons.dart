@@ -104,6 +104,10 @@ class SalesActionButtons extends StatelessWidget {
               onPrintingStateChanged(sellId);
               
               try {
+                print('DEBUG RECENT PRINT: Starting print for sellId: $sellId');
+                print('DEBUG RECENT PRINT: sellItem data: $sellItem');
+                print('DEBUG RECENT PRINT: tax_rate_id: ${sellItem['tax_rate_id']}');
+                
                 showDialog(
                   barrierDismissible: false,
                   context: context,
@@ -121,13 +125,17 @@ class SalesActionButtons extends StatelessWidget {
                   },
                 );
                 
+                print('DEBUG RECENT PRINT: Calling printDocument');
                 await Helper().printDocument(
                     sellItem['id'],
                     sellItem['tax_rate_id'],
                     context);
+                print('DEBUG RECENT PRINT: printDocument completed successfully');
                     
                 Navigator.pop(context);
               } catch (e) {
+                print('DEBUG RECENT PRINT: Error caught: $e');
+                print('DEBUG RECENT PRINT: Error type: ${e.runtimeType}');
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

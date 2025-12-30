@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:printing/printing.dart';
+import 'package:http/http.dart' as http;
+import 'package:share_plus/share_plus.dart';
 
 import '../../../helpers/AppTheme.dart';
 import '../../../helpers/SizeConfig.dart';
@@ -147,18 +150,32 @@ class AllSalesActionButtons extends StatelessWidget {
     onPrintingStateChanged(salesId);
     
     try {
-      _showLoadingDialog(context, 'Generating Invoice...');
+      print('DEBUG PRINT: Starting print for salesId: $salesId');
+      print('DEBUG PRINT: salesItem data: $salesItem');
+      print('DEBUG PRINT: invoice_url: ${salesItem['invoice_url']}');
+      
+      _showLoadingDialog(context, 'Opening Invoice...');
       
       if (await Helper().checkConnectivity()) {
-        await Helper().printDocument(0, 0, context);
+        print('DEBUG PRINT: Connectivity OK, using server invoice');
+        // Use the server-generated invoice URL for printing
+        await _printServerInvoice(salesItem['invoice_url']);
+        print('DEBUG PRINT: Server invoice printed successfully');
       } else {
+        print('DEBUG PRINT: No connectivity');
         Fluttertoast.showToast(
             msg: AppLocalizations.of(context).translate('check_connectivity'));
       }
       
       Navigator.pop(context);
     } catch (e) {
+      print('DEBUG PRINT: Error caught: $e');
+      print('DEBUG PRINT: Error type: ${e.runtimeType}');
+      print('DEBUG PRINT: Error stack trace: ${StackTrace.current}');
       Navigator.pop(context);
+      Fluttertoast.showToast(
+          msg: 'Print Error: ${e.toString()}',
+          toastLength: Toast.LENGTH_LONG);
       _showErrorSnackbar(context);
     } finally {
       onPrintingStateChanged(salesId);
@@ -169,18 +186,33 @@ class AllSalesActionButtons extends StatelessWidget {
     onSharingStateChanged(salesId);
     
     try {
+      print('DEBUG SHARE: Starting share for salesId: $salesId');
+      print('DEBUG SHARE: salesItem data: $salesItem');
+      print('DEBUG SHARE: invoice_url: ${salesItem['invoice_url']}');
+      print('DEBUG SHARE: invoice_no: ${salesItem['invoice_no']}');
+      
       _showLoadingDialog(context, 'Preparing Invoice...');
       
       if (await Helper().checkConnectivity()) {
-        await Helper().savePdf(0, 0, context, salesItem['invoice_no']);
+        print('DEBUG SHARE: Connectivity OK, using server invoice');
+        // Use the server-generated invoice URL for sharing
+        await _shareServerInvoice(salesItem['invoice_url'], salesItem['invoice_no']);
+        print('DEBUG SHARE: Server invoice shared successfully');
       } else {
+        print('DEBUG SHARE: No connectivity');
         Fluttertoast.showToast(
             msg: AppLocalizations.of(context).translate('check_connectivity'));
       }
       
       Navigator.pop(context);
     } catch (e) {
+      print('DEBUG SHARE: Error caught: $e');
+      print('DEBUG SHARE: Error type: ${e.runtimeType}');
+      print('DEBUG SHARE: Error stack trace: ${StackTrace.current}');
       Navigator.pop(context);
+      Fluttertoast.showToast(
+          msg: 'Share Error: ${e.toString()}',
+          toastLength: Toast.LENGTH_LONG);
       _showErrorSnackbar(context);
     } finally {
       onSharingStateChanged(salesId);
@@ -214,5 +246,26 @@ class AllSalesActionButtons extends StatelessWidget {
         backgroundColor: Colors.red,
       ),
     );
+  }
+
+  Future<void> _printServerInvoice(String invoiceUrl) async {
+    if (invoiceUrl.isNotEmpty) {
+      // For server invoices, open the URL for printing
+      await launch(invoiceUrl);
+    } else {
+      throw Exception('Invoice URL is empty');
+    }
+  }
+
+  Future<void> _shareServerInvoice(String invoiceUrl, String invoiceNo) async {
+    if (invoiceUrl.isNotEmpty) {
+      // Use Share library to share the invoice URL
+      await Share.share(
+        invoiceUrl,
+        subject: 'Invoice: ${invoiceNo ?? 'Invoice'}',
+      );
+    } else {
+      throw Exception('Invoice URL is empty');
+    }
   }
 }
