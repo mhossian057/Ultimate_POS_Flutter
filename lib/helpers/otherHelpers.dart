@@ -360,6 +360,10 @@ class Helper {
     double invoiceTotal = sellDetails != null ? (sellDetails['invoice_amount'] ?? 0).toDouble() : subTotal;
     double dueAmount = invoiceTotal - totalPaidAmount;
     
+    // Check show_total_before_vat setting
+    bool showTotalBeforeVat = locationDetails['invoice_layout']?['common_settings']?['show_total_before_vat'] == "1" ||
+                              locationDetails['invoice_layout']?['common_settings']?['show_total_before_vat'] == true;
+    
     // Create business address
     String businessAddress = '';
     if (locationDetails.isNotEmpty) {
@@ -529,7 +533,10 @@ class Helper {
                         pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
-                            pw.Text('Total before VAT:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                            pw.Text(
+                              showTotalBeforeVat ? 'Total before VAT:' : 'Sub total:', 
+                              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
+                            ),
                             pw.Text('${businessDetails['symbol']} ${formatCurrency(subTotal)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
                           ],
                         ),
@@ -711,6 +718,13 @@ class Helper {
         taxNumber = business[0]['tax_number_1'];
     int? currencyPrecision = int.tryParse(business[0]['currency_precision']?.toString() ?? ''),
         quantityPrecision = int.tryParse(business[0]['quantity_precision']?.toString() ?? '');
+    
+    // Get common settings
+    Map<String, dynamic> commonSettings = {};
+    if (business[0]['common_settings'] != null) {
+      commonSettings = business[0]['common_settings'];
+    }
+    
     return {
       'symbol': symbol ?? '',
       'name': name ?? '',
@@ -718,7 +732,8 @@ class Helper {
       'currencyPrecision': currencyPrecision ?? Config.currencyPrecision,
       'quantityPrecision': quantityPrecision ?? Config.quantityPrecision,
       'taxLabel': (taxLabel != null) ? '$taxLabel : ' : '',
-      'taxNumber': (taxNumber != null) ? '$taxNumber' : ''
+      'taxNumber': (taxNumber != null) ? '$taxNumber' : '',
+      'commonSettings': commonSettings
     };
   }
 

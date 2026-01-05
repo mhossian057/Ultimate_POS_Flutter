@@ -204,6 +204,17 @@ class InvoiceFormatter {
     var customerCountry =
     (customer != null && customer['country'] != null) ? customer['country'] : '';
     var customerMobile = customer != null ? customer['mobile'] : '';
+    
+    // Check show_total_before_vat setting from invoice layout common settings
+    bool showTotalBeforeVat = false;
+    if (location != null && location['invoice_layout'] != null && 
+        location['invoice_layout']['common_settings'] != null &&
+        location['invoice_layout']['common_settings']['show_total_before_vat'] != null) {
+      // Check for string "1" or boolean true
+      var setting = location['invoice_layout']['common_settings']['show_total_before_vat'];
+      showTotalBeforeVat = (setting == "1" || setting == true);
+    }
+    
     List paymentList =
     await PaymentDatabase().get(sells[0]['id'], allColumns: true);
     double totalPaidAmount = 0.0;
@@ -428,7 +439,7 @@ class InvoiceFormatter {
       </table>
       <div class="flex-box subtotal-row">
          <p class="subtotal-label text-left">
-            <strong>Total before VAT:</strong>
+            <strong>${showTotalBeforeVat ? 'Total before VAT:' : 'Sub total:'}</strong>
          </p>
          <p class="subtotal-amount text-right">
             <strong>$symbol ${Helper().formatCurrency(sTotal)}</strong>
