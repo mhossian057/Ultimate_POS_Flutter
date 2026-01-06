@@ -407,10 +407,11 @@ class InvoiceFormatter {
             <span class="address-line">$landmark $city $state $zipCode $country $businessMobile</span>
             <br>
             <span class="address-line"><b>$taxLabel </b> $taxNumber</span>
+            ${location != null && location['custom_field1'] != null ? '<br><span class="address-line">' + location['custom_field1'] + '</span>' : ''}
          </p>
       </div>
-      <div class="textbox-info">
-         <p class="centered"><strong>${showTotalBeforeVat ? 'Tax Invoice' : 'Invoice'}</strong></p>
+      <div class="text-box">
+         <p class="centered"><strong>${location != null && location['invoice_layout'] != null && location['invoice_layout']['invoice_heading'] != null ? location['invoice_layout']['invoice_heading'] : 'Invoice'}</strong></p>
       </div>
       <div class="border-top textbox-info">
          <p class="f-left"><strong>${AppLocalizations.of(context).translate('invoice_no')}</strong>&nbsp&nbsp$invoiceNo</p>
