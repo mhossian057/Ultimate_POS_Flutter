@@ -147,7 +147,7 @@ class _CustomerCartProductListState extends State<CustomerCartProductList> {
       create: (_) => PreviousPriceProvider(),
       child: Consumer<PreviousPriceProvider>(
         builder: (context, provider, child) {
-          // Load previous price when widget is built
+          // Load previous price when widget is built (only once)
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && !provider.isLoading && !provider.hasPreviousPrice && provider.error == null) {
               provider.fetchPreviousPrice(
