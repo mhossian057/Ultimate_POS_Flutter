@@ -409,6 +409,9 @@ class InvoiceFormatter {
             <span class="address-line"><b>$taxLabel </b> $taxNumber</span>
          </p>
       </div>
+      <div class="textbox-info">
+         <p class="centered"><strong>${showTotalBeforeVat ? 'Tax Invoice' : 'Invoice'}</strong></p>
+      </div>
       <div class="border-top textbox-info">
          <p class="f-left"><strong>${AppLocalizations.of(context).translate('invoice_no')}</strong>&nbsp&nbsp$invoiceNo</p>
       </div>
