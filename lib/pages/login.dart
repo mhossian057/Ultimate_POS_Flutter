@@ -57,7 +57,7 @@ class _LoginState extends State<Login> {
           padding: EdgeInsets.all(0),
           children: <Widget>[
             Container(
-              height: MediaQuery.of(context).size.height * 3 / 10,
+              height: MediaQuery.of(context).size.height * 3 / 12,
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
@@ -65,10 +65,7 @@ class _LoginState extends State<Login> {
                     fit: BoxFit.fill,
                     child: CachedNetworkImage(
                       imageUrl: Config().loginScreen,
-                      placeholder: (context, url) => Transform.scale(
-                        scale: 0.07,
-                        child: CircularProgressIndicator(),
-                      ),
+                      placeholder: (context, url) => Image.asset('assets/images/login.jpg'),
                       errorWidget: (context, url, error) =>
                           Image.asset('assets/images/login.jpg'),
                     ),

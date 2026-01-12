@@ -164,7 +164,7 @@
   "sync_all_sales_before_logout": "Oturumu kapatmadan önce tüm satışları senkronize edin.",
   "select_sub_category": "Alt Kategori Seçin",
   "sub_categories": "Alt Kategoriler",
-  "shipment": "Gönderi",
+  "shipment": "Teslimat",
   "shipping_address": "Teslimat adresi",
   "delivered_to": "Teslim edildi",
   "payment_account": "Ödeme Hesabı",

@@ -41,6 +41,7 @@ class _ContactPaymentState extends State<ContactPayment> {
 
   String symbol = '';
   var payingAmount = new TextEditingController();
+  bool isSubmitting = false;
 
   static int themeType = 1;
   ThemeData themeData = AppTheme.getThemeFromThemeMode(themeType);
@@ -133,12 +134,10 @@ class _ContactPaymentState extends State<ContactPayment> {
                               fontWeight: 400,
                               letterSpacing: -0.2),
                           inputFormatters: [
-                            // ignore: deprecated_member_use
-                            FilteringTextInputFormatter(
-                                RegExp(r'^(\d+)?\.?\d{0,2}'),
-                                allow: true)
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d+\.?\d{0,2}'))
                           ],
-                          keyboardType: TextInputType.number,
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
                           onChanged: (value) {}),
                       Padding(
                         padding: EdgeInsets.all(MySize.size10!),
@@ -174,18 +173,47 @@ class _ContactPaymentState extends State<ContactPayment> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: themeData.colorScheme.primary,
+                        padding: EdgeInsets.symmetric(
+                            horizontal: MySize.size32!, vertical: MySize.size12!),
                       ),
-                      onPressed: () async {
-                        await onSubmit();
-                      },
-                      child: Text(
-                        AppLocalizations.of(context).translate('submit'),
-                        style: AppTheme.getTextStyle(
-                            themeData.textTheme.headlineSmall,
-                            color: themeData.colorScheme.onPrimary,
-                            fontWeight: 700,
-                            letterSpacing: -0.2),
-                      ),
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              await onSubmit();
+                            },
+                      child: isSubmitting
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        themeData.colorScheme.onPrimary),
+                                  ),
+                                ),
+                                SizedBox(width: MySize.size12),
+                                Text(
+                                  AppLocalizations.of(context)
+                                      .translate('submit'),
+                                  style: AppTheme.getTextStyle(
+                                      themeData.textTheme.headlineSmall,
+                                      color: themeData.colorScheme.onPrimary,
+                                      fontWeight: 700,
+                                      letterSpacing: -0.2),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              AppLocalizations.of(context).translate('submit'),
+                              style: AppTheme.getTextStyle(
+                                  themeData.textTheme.headlineSmall,
+                                  color: themeData.colorScheme.onPrimary,
+                                  fontWeight: 700,
+                                  letterSpacing: -0.2),
+                            ),
                     ),
                   ],
                 )
@@ -201,23 +229,43 @@ class _ContactPaymentState extends State<ContactPayment> {
     if (await Helper().checkConnectivity()) {
       if (_formKey.currentState!.validate()) {
         if (selectedLocation['id'] != 0) {
-          Map<String, dynamic> paymentMap = {
-            "contact_id": selectedCustomerId,
-            "amount": double.parse(payingAmount.text),
-            "method": selectedPaymentMethod['name'],
-            "account_id": selectedPaymentMethod['account_id'],
-            "paid_on": DateFormat("yyyy-MM-dd hh:mm:ss")
-                .format(DateTime.now())
-                .toString(),
-          };
-          await ContactPaymentApi()
-              .postContactPayment(paymentMap)
-              .then((value) {
-            Navigator.popUntil(context, ModalRoute.withName('/home'));
-            Fluttertoast.showToast(
-                msg: AppLocalizations.of(context)
-                    .translate('payment_successful'));
+          setState(() {
+            isSubmitting = true;
           });
+
+          try {
+            Map<String, dynamic> paymentMap = {
+              "contact_id": selectedCustomerId,
+              "amount": double.parse(payingAmount.text),
+              "method": selectedPaymentMethod['name'],
+              "account_id": selectedPaymentMethod['account_id'],
+              "paid_on": DateFormat("yyyy-MM-dd hh:mm:ss")
+                  .format(DateTime.now())
+                  .toString(),
+            };
+            await ContactPaymentApi()
+                .postContactPayment(paymentMap)
+                .then((value) {
+              setState(() {
+                isSubmitting = false;
+              });
+              Navigator.popUntil(context, ModalRoute.withName('/home'));
+              Fluttertoast.showToast(
+                  msg: AppLocalizations.of(context)
+                      .translate('payment_successful'));
+            }).catchError((error) {
+              setState(() {
+                isSubmitting = false;
+              });
+              Fluttertoast.showToast(
+                  msg: 'Payment failed: ${error.toString()}');
+            });
+          } catch (e) {
+            setState(() {
+              isSubmitting = false;
+            });
+            Fluttertoast.showToast(msg: 'Error: ${e.toString()}');
+          }
         } else {
           Fluttertoast.showToast(
               msg: AppLocalizations.of(context)

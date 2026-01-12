@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 // import 'package:call_log/call_log.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,7 +14,6 @@ import '../helpers/SizeConfig.dart';
 import '../locale/MyLocalizations.dart';
 import '../models/contact_model.dart';
 import '../models/shipment.dart';
-import '../models/system.dart';
 // import 'googleMap.dart';
 
 class Shipment extends StatefulWidget {
@@ -28,6 +26,8 @@ class _ShipmentState extends State<Shipment> {
   DateTime selectedDate = DateTime.now();
   String? nextPage = '', selectedStatus = '', selectedInlineStatus;
   List<dynamic> shipments = [];
+  bool isLoading = true;
+  String? errorMessage;
   TextEditingController deliveredToController = new TextEditingController();
   ScrollController _scrollController = new ScrollController();
 
@@ -38,23 +38,34 @@ class _ShipmentState extends State<Shipment> {
   @override
   void initState() {
     super.initState();
-    shipmentStatus = ShipmentModel().shipmentStatus;
-    selectedStatus = shipmentStatus![0];
-    getShipments();
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels ==
-          _scrollController.position.maxScrollExtent) {
-        generateShipmentList();
-      }
-    });
+    print('Shipment: initState started');
+    try {
+      shipmentStatus = ShipmentModel().shipmentStatus;
+      selectedStatus = shipmentStatus![0];
+      print('Shipment: Status initialized - $selectedStatus');
+      getShipments();
+      _scrollController.addListener(() {
+        if (_scrollController.position.pixels ==
+            _scrollController.position.maxScrollExtent) {
+          generateShipmentList();
+        }
+      });
+    } catch (e) {
+      print('Shipment: Error in initState - $e');
+    }
   }
 
   getShipments() async {
-    var date = selectedDate.toLocal().toString().split(' ')[0];
-    nextPage = Api().apiUrl +
-        "sell/?start_date=$date"
-            "&shipping_status=$selectedStatus";
-    generateShipmentList();
+    try {
+      var date = selectedDate.toLocal().toString().split(' ')[0];
+      nextPage = Api().apiUrl +
+          "sell/?start_date=$date"
+              "&shipping_status=$selectedStatus";
+      print('Shipment: API URL - $nextPage');
+      generateShipmentList();
+    } catch (e) {
+      print('Shipment: Error in getShipments - $e');
+    }
   }
 
   @override
@@ -65,6 +76,7 @@ class _ShipmentState extends State<Shipment> {
 
   @override
   Widget build(BuildContext context) {
+    print('Shipment: Building UI - isLoading: $isLoading, shipments count: ${shipments.length}');
     return Scaffold(
       appBar: AppBar(
         elevation: 0.0,
@@ -72,40 +84,85 @@ class _ShipmentState extends State<Shipment> {
             style: AppTheme.getTextStyle(themeData.textTheme.headlineSmall,
                 fontWeight: 600)),
       ),
-      body: SingleChildScrollView(
-        controller: _scrollController,
-        child: Column(
-          children: [
-            Padding(
-              padding: EdgeInsets.only(
-                  left: MySize.size20!,
-                  top: MySize.size5!,
-                  bottom: MySize.size10!),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+      body: errorMessage != null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  status(), shipmentDatePicker(),
-                  // locateShipments()
+                  Icon(Icons.error_outline, size: 60, color: Colors.red),
+                  SizedBox(height: 20),
+                  Text('Error: $errorMessage',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16)),
+                  SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        errorMessage = null;
+                        isLoading = true;
+                        shipments = [];
+                        getShipments();
+                      });
+                    },
+                    child: Text('Retry'),
+                  )
+                ],
+              ),
+            )
+          : SingleChildScrollView(
+              controller: _scrollController,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(
+                        left: MySize.size20!,
+                        top: MySize.size5!,
+                        bottom: MySize.size10!),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        status(),
+                        shipmentDatePicker(),
+                        // locateShipments()
+                      ],
+                    ),
+                  ),
+                  isLoading && shipments.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(MySize.size50!),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      : shipments.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(MySize.size50!),
+                                child: Text(
+                                  'No shipments found',
+                                  style: AppTheme.getTextStyle(
+                                      themeData.textTheme.titleLarge),
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              physics: NeverScrollableScrollPhysics(),
+                              scrollDirection: Axis.vertical,
+                              itemCount: shipments.length,
+                              itemBuilder: (context, index) {
+                                return block(index, shipments[index]['id'],
+                                    invoiceNo: shipments[index]['invoice_no'],
+                                    date: shipments[index]['transaction_date'],
+                                    customerName: shipments[index]
+                                        ['customerName'],
+                                    status: shipments[index]['shipping_status'],
+                                    deliverTo: shipments[index]['delivered_to'],
+                                    contactNo: shipments[index]['contact_no']);
+                              })
                 ],
               ),
             ),
-            ListView.builder(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                scrollDirection: Axis.vertical,
-                itemCount: shipments.length,
-                itemBuilder: (context, index) {
-                  return block(index, shipments[index]['id'],
-                      invoiceNo: shipments[index]['invoice_no'],
-                      date: shipments[index]['transaction_date'],
-                      customerName: shipments[index]['customerName'],
-                      status: shipments[index]['shipping_status'],
-                      deliverTo: shipments[index]['delivered_to'],
-                      contactNo: shipments[index]['contact_no']);
-                })
-          ],
-        ),
-      ),
     );
   }
 
@@ -133,6 +190,8 @@ class _ShipmentState extends State<Shipment> {
       setState(() {
         selectedDate = picked;
         shipments = [];
+        isLoading = true;
+        errorMessage = null;
         getShipments();
       });
   }
@@ -144,6 +203,8 @@ class _ShipmentState extends State<Shipment> {
           setState(() {
             selectedStatus = item;
             shipments = [];
+            isLoading = true;
+            errorMessage = null;
             getShipments();
           });
         },
@@ -441,36 +502,81 @@ class _ShipmentState extends State<Shipment> {
   //Retrieve shipment list from api
   //generate shipment list
   generateShipmentList() async {
-    setState(() {
-      /* isLoading = false;*/
-    });
-    final dio = new Dio();
-    var token = await System().getToken();
-    dio.options.headers['content-Type'] = 'application/json';
-    dio.options.headers["Authorization"] = "Bearer $token";
-    if (nextPage != null) {
-      await dio.get(nextPage!).then((value) {
-        Map links = value.data['links'];
-        nextPage = links['next'];
-        List shipment = value.data['data'];
-        shipment.forEach((element) async {
-          Map<String, dynamic> customer =
-              await getCustomerNameById(element['contact_id']);
-          setState(() {
-            shipments.add({
-              'id': element['id'],
-              'invoice_no': element['invoice_no'],
-              'customerName': customer['name'],
-              'transaction_date': element['transaction_date'],
-              'shipping_status': element['shipping_status'],
-              'shipping_details': element['shipping_details'],
-              'shipping_address': element['shipping_address'],
-              'delivered_to': element['delivered_to'],
-              'contact_no': customer['mobile'],
+    print('Shipment: generateShipmentList started');
+    try {
+      if (nextPage != null && nextPage!.isNotEmpty) {
+        print('Shipment: Making API call to - $nextPage');
+
+        // Use ShipmentApi instead of Dio
+        var result = await ShipmentApi().getShipments(nextPage!);
+
+        if (result != null) {
+          print('Shipment: API Response received');
+          print('Shipment: Response data - $result');
+
+          Map links = result['links'];
+          nextPage = links['next'];
+          List shipment = result['data'];
+          print('Shipment: Found ${shipment.length} shipments');
+
+          // Process all shipments
+          for (var element in shipment) {
+            try {
+              Map<String, dynamic> customer =
+                  await getCustomerNameById(element['contact_id']);
+              if (mounted) {
+                setState(() {
+                  shipments.add({
+                    'id': element['id'],
+                    'invoice_no': element['invoice_no'],
+                    'customerName': customer['name'],
+                    'transaction_date': element['transaction_date'],
+                    'shipping_status': element['shipping_status'],
+                    'shipping_details': element['shipping_details'],
+                    'shipping_address': element['shipping_address'],
+                    'delivered_to': element['delivered_to'],
+                    'contact_no': customer['mobile'],
+                  });
+                });
+              }
+            } catch (e) {
+              print('Shipment: Error processing shipment item - $e');
+            }
+          }
+
+          // Set loading to false after all items are processed
+          if (mounted) {
+            setState(() {
+              isLoading = false;
             });
+          }
+          print('Shipment: All shipments processed');
+        } else {
+          print('Shipment: API returned null');
+          if (mounted) {
+            setState(() {
+              isLoading = false;
+              errorMessage = 'Failed to fetch shipments. Please check your connection.';
+            });
+          }
+        }
+      } else {
+        print('Shipment: nextPage is null or empty');
+        if (mounted) {
+          setState(() {
+            isLoading = false;
           });
+        }
+      }
+    } catch (e) {
+      print('Shipment: Error in generateShipmentList - $e');
+      print('Shipment: Stack trace - ${StackTrace.current}');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          errorMessage = e.toString();
         });
-      });
+      }
     }
   }
 

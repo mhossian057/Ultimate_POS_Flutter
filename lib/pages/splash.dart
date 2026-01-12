@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,70 +21,64 @@ class Splash extends StatelessWidget {
     MySize().init(context);
 
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CachedNetworkImage(
+      body: SingleChildScrollView(
+            child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                Image.asset(
+                'assets/images/splash_screen.png',
                 fit: BoxFit.fill,
-                height: MySize.screenHeight! * 0.5,
+                height: MySize.screenHeight! * 0.75,
                 width: MySize.screenWidth,
-                imageUrl: Config().splashScreen,
-                placeholder: (context, url) => Transform.scale(
-                  scale: 0.1,
-                  child: CircularProgressIndicator(),
-                ),
-                errorWidget: (context, url, error) =>
-                    Image.asset('assets/images/splash_screen.png'),
               ),
-              Text(AppLocalizations.of(context).translate('welcome'),
-                  style: AppTheme.getTextStyle(themeData.textTheme.headlineLarge,
-                      color: themeData.colorScheme.onSurface)),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await Helper().requestAppPermission();
-                  SharedPreferences prefs =
-                      await SharedPreferences.getInstance();
-                  if (prefs.getInt('userId') != null) {
-                    USERID = prefs.getInt('userId');
-                    Config.userId = USERID;
-                    Helper().jobScheduler();
-                    //Take to home page
-                    Navigator.of(context).pushReplacementNamed('/home');
-                  } else
-                    Navigator.of(context).pushReplacementNamed('/login');
-                },
-                icon: Icon(Icons.navigate_next,
-                    color: themeData.colorScheme.primary),
-                label: Text(AppLocalizations.of(context).translate('login'),
-                    style: AppTheme.getTextStyle(themeData.textTheme.bodyLarge,
-                        color: themeData.colorScheme.primary, fontWeight: 600)),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: themeData.colorScheme.onPrimary,
-                    shadowColor: themeData.colorScheme.primary),
-              ),
-              Visibility(
-                visible: Config().showRegister,
-                child: Padding(
-                  padding: EdgeInsets.all(MySize.size10!),
-                  child: GestureDetector(
-                    child: Text(
-                        AppLocalizations.of(context).translate('register'),
-                        style: AppTheme.getTextStyle(
-                            themeData.textTheme.bodyLarge,
-                            color: themeData.colorScheme.onBackground,
-                            fontWeight: 600)),
-                    onTap: () async {
-                      await launch('${Config.baseUrl}business/register');
-                    },
-                  ),
-                ),
-              )
-            ],
+      SizedBox(height: MySize.size20),
+      Text(AppLocalizations.of(context).translate('welcome'),
+          style: AppTheme.getTextStyle(themeData.textTheme.headlineLarge,
+              color: themeData.colorScheme.onSurface)),
+      SizedBox(height: MySize.size20),
+      ElevatedButton.icon(
+        onPressed: () async {
+          await Helper().requestAppPermission();
+          SharedPreferences prefs =
+          await SharedPreferences.getInstance();
+          if (prefs.getInt('userId') != null) {
+            USERID = prefs.getInt('userId');
+            Config.userId = USERID;
+            Helper().jobScheduler();
+            //Take to home page
+            Navigator.of(context).pushReplacementNamed('/home');
+          } else
+            Navigator.of(context).pushReplacementNamed('/login');
+        },
+        icon: Icon(Icons.navigate_next,
+            color: themeData.colorScheme.primary),
+        label: Text(AppLocalizations.of(context).translate('login'),
+            style: AppTheme.getTextStyle(themeData.textTheme.bodyLarge,
+                color: themeData.colorScheme.primary, fontWeight: 600)),
+        style: ElevatedButton.styleFrom(
+            backgroundColor: themeData.colorScheme.onPrimary,
+            shadowColor: themeData.colorScheme.primary),
+      ),
+      Visibility(
+        visible: Config().showRegister,
+        child: Padding(
+          padding: EdgeInsets.all(MySize.size10!),
+          child: GestureDetector(
+            child: Text(
+                AppLocalizations.of(context).translate('register'),
+                style: AppTheme.getTextStyle(
+                    themeData.textTheme.bodyLarge,
+                    color: themeData.colorScheme.onBackground,
+                    fontWeight: 600)),
+            onTap: () async {
+              await launch('${Config.baseUrl}business/register');
+            },
           ),
         ),
-      ),
+      )
+      ],
+    ),
+    ),
     );
   }
 }
