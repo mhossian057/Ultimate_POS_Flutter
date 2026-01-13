@@ -346,7 +346,7 @@ class _ShipmentState extends State<Shipment> {
                 Row(
                   children: [
                     Text(
-                      '#$invoiceNo',
+                      '#${invoiceNo ?? "N/A"}',
                       style: AppTheme.getTextStyle(
                         themeData.textTheme.titleMedium,
                         fontWeight: 600,
@@ -362,7 +362,7 @@ class _ShipmentState extends State<Shipment> {
                       color: Colors.blueGrey.shade600,
                     ),
                     Text(
-                      " $customerName",
+                      " ${customerName ?? 'N/A'}",
                       style: AppTheme.getTextStyle(
                         themeData.textTheme.titleMedium,
                         fontWeight: 600,
@@ -378,7 +378,7 @@ class _ShipmentState extends State<Shipment> {
                       color: Colors.green.shade900,
                     ),
                     Text(
-                      ' $date',
+                      ' ${date ?? "N/A"}',
                       style: AppTheme.getTextStyle(
                         themeData.textTheme.titleMedium,
                         color: themeData.colorScheme.onBackground,
@@ -394,7 +394,9 @@ class _ShipmentState extends State<Shipment> {
                       children: [
                         GestureDetector(
                           onTap: () async {
-                            launch("tel:$contactNo");
+                            if (contactNo != null && contactNo != 'N/A') {
+                              launch("tel:$contactNo");
+                            }
                             // CustomerApi().getLeads();
                             // var now = DateTime.now();int from = now.subtract(Duration(days: 1)).millisecondsSinceEpoch;int to = now.subtract(Duration(days: 0)).millisecondsSinceEpoch;
 
@@ -407,7 +409,7 @@ class _ShipmentState extends State<Shipment> {
                                 color: Colors.lightBlue,
                               ),
                               Text(
-                                ' $contactNo',
+                                ' ${contactNo ?? "N/A"}',
                                 style: AppTheme.getTextStyle(
                                   themeData.textTheme.headlineSmall,
                                 ),
@@ -423,7 +425,7 @@ class _ShipmentState extends State<Shipment> {
                                 color: Colors.yellow.shade900,
                               ),
                               Text(
-                                ' $deliverTo',
+                                ' ${deliverTo ?? "N/A"}',
                                 style: AppTheme.getTextStyle(
                                   themeData.textTheme.headlineSmall,
                                   fontWeight: 700,
@@ -432,8 +434,9 @@ class _ShipmentState extends State<Shipment> {
                               ),
                             ],
                           ),
-                          visible: (deliverTo.toString().trim() != '' &&
-                              deliverTo != null),
+                          visible: (deliverTo != null &&
+                              deliverTo != 'N/A' &&
+                              deliverTo.toString().trim() != ''),
                         ),
                       ],
                     ),
@@ -462,7 +465,7 @@ class _ShipmentState extends State<Shipment> {
                               border:
                                   Border.all(color: customAppTheme.bgLayer3)),
                           child: Text(
-                            status.toString().toUpperCase(),
+                            (status ?? 'N/A').toString().toUpperCase(),
                             style: AppTheme.getTextStyle(
                               themeData.textTheme.bodyLarge,
                               color: themeData.colorScheme.onBackground,
@@ -481,7 +484,7 @@ class _ShipmentState extends State<Shipment> {
                       margin: EdgeInsets.only(left: MySize.size2!),
                       width: MySize.screenWidth! * 0.8,
                       child: Text(
-                        '${shipments[index]['shipping_address']}',
+                        '${shipments[index]['shipping_address'] ?? 'N/A'}',
                         style: AppTheme.getTextStyle(
                           themeData.textTheme.bodyLarge,
                           color: themeData.colorScheme.onBackground,
@@ -522,25 +525,31 @@ class _ShipmentState extends State<Shipment> {
           // Process all shipments
           for (var element in shipment) {
             try {
-              Map<String, dynamic> customer =
-                  await getCustomerNameById(element['contact_id']);
+              // Use contact data directly from API response instead of querying database
+              var contactData = element['contact'];
+
+              print('Shipment: Processing shipment ID ${element['id']}, Invoice: ${element['invoice_no']}');
+              print('Shipment: Contact data available: ${contactData != null}');
+
               if (mounted) {
                 setState(() {
                   shipments.add({
-                    'id': element['id'],
-                    'invoice_no': element['invoice_no'],
-                    'customerName': customer['name'],
-                    'transaction_date': element['transaction_date'],
-                    'shipping_status': element['shipping_status'],
-                    'shipping_details': element['shipping_details'],
-                    'shipping_address': element['shipping_address'],
-                    'delivered_to': element['delivered_to'],
-                    'contact_no': customer['mobile'],
+                    'id': element['id'] ?? 0,
+                    'invoice_no': element['invoice_no'] ?? 'N/A',
+                    'customerName': contactData != null ? (contactData['name'] ?? 'N/A') : 'N/A',
+                    'transaction_date': element['transaction_date'] ?? 'N/A',
+                    'shipping_status': element['shipping_status'] ?? 'N/A',
+                    'shipping_details': element['shipping_details'] ?? 'N/A',
+                    'shipping_address': element['shipping_address'] ?? 'N/A',
+                    'delivered_to': element['delivered_to'] ?? 'N/A',
+                    'contact_no': contactData != null ? (contactData['mobile'] ?? 'N/A') : 'N/A',
                   });
                 });
               }
+              print('Shipment: Successfully added shipment to list');
             } catch (e) {
               print('Shipment: Error processing shipment item - $e');
+              print('Shipment: Error details - ${e.toString()}');
             }
           }
 
@@ -586,7 +595,7 @@ class _ShipmentState extends State<Shipment> {
         context: context,
         builder: (context) {
           return AlertDialog(
-            title: Text("${shipments[index]['invoice_no']}"),
+            title: Text("${shipments[index]['invoice_no'] ?? 'N/A'}"),
             content: Container(
               width: double.maxFinite,
               child: ListView(
@@ -600,7 +609,7 @@ class _ShipmentState extends State<Shipment> {
                           fontWeight: 600),
                     ),
                     subtitle: Text(
-                      '$details',
+                      '${details ?? "N/A"}',
                       style: AppTheme.getTextStyle(
                           themeData.textTheme.bodyLarge,
                           fontWeight: 500),
@@ -615,7 +624,7 @@ class _ShipmentState extends State<Shipment> {
                           fontWeight: 600),
                     ),
                     subtitle: Text(
-                      '$address',
+                      '${address ?? "N/A"}',
                       style: AppTheme.getTextStyle(
                           themeData.textTheme.bodyLarge,
                           fontWeight: 500),
