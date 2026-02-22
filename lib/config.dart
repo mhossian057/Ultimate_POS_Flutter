@@ -2,27 +2,32 @@ import 'dart:ui';
 //import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class Config {
+  static String baseUrl = 'https://secure.billmateapp.com/';
 
-  static String baseUrl = 'https://dev.gtsoftwares.com/';
   // static String baseUrl = 'https://billmate.gtsoftwares.com/';
+  // static String baseUrlProd = 'https://secure.billmateapp.com/';
   static int? userId;
-       String clientId = '6',
-        clientSecret = 'kevYEEokYoY8TKL9gJgednf8HmEvMkfZn71Q3iie',
-        // clientSecret = 'pbObvml6ZHegu9c2OyJlBN0pMBjDab9Kd0AHfZuT',
-        copyright = '\u00a9',
-        appName = 'billmate',
-        version = 'V 1.7',
+  String clientId = '6',
+      // String clientId = '11',
+      clientSecret = 'kevYEEokYoY8TKL9gJgednf8HmEvMkfZn71Q3iie',
+      // clientSecret = 'pbObvml6ZHegu9c2OyJlBN0pMBjDab9Kd0AHfZuT',
+      // clientSecretProd = 'kevYEEokYoY8TKL9gJgednf8HmEvMkfZn71Q3iie',
+      copyright = '\u00a9',
+      appName = 'billmate',
+      version = 'V 1.7',
       splashScreen = '${Config.baseUrl}uploads/mobile/welcome.jpg',
       loginScreen = '${Config.baseUrl}uploads/mobile/login.jpg',
       noDataImage = '${Config.baseUrl}uploads/mobile/no_data.jpg',
       defaultBusinessImage = '${Config.baseUrl}uploads/business_default.jpg';
-    final bool syncCallLog = false, showRegister = false, showFieldForce = false;
+  final bool syncCallLog = false, showRegister = false, showFieldForce = false;
 
   //quantity precision       //currency precision   //call_log sync duration
-  static int quantityPrecision = 2, currencyPrecision = 2, callLogSyncDuration = 10;
+  static int quantityPrecision = 2,
+      currencyPrecision = 2,
+      callLogSyncDuration = 10;
 
   //List of locale language code
-  List locale = ['en', 'ar', 'de', 'fr', 'es','tr','id','my'];
+  List locale = ['en', 'ar', 'de', 'fr', 'es', 'tr', 'id', 'my'];
   String defaultLanguage = 'en';
 
   //List of locales included

@@ -97,44 +97,90 @@ class InvoiceFormatter {
     return product;
   }
 
-  setTax(taxId) {
-    System().get('tax').then((value) {
-      value.forEach((element) {
-        if (element['id'] == taxId) {
-          taxName = element['name'];
-          tax = double.parse(element['amount'].toString());
-        }
-      });
+  Future<void> setTax(taxId) async {
+    print('DEBUG setTax called with taxId: $taxId');
+    List value = await System().get('tax');
+    print('DEBUG tax list: $value');
+    value.forEach((element) {
+      if (element['id'] == taxId) {
+        taxName = element['name'];
+        tax = double.parse(element['amount'].toString());
+        print('DEBUG Tax found: $taxName = $tax%');
+      }
     });
+    print('DEBUG Final tax value: $tax');
   }
 
   Map<String, dynamic> getTotalAmount(
       {required String discountType,
       required double discountAmount,
-      required String symbol}) {
+      required String symbol,
+      bool useInlineTax = false}) {
     Map<String, dynamic> allAmounts = {};
+
+    // When useInlineTax is true, use subTotal (which already includes product-level taxes)
+    // instead of calculating transaction-level tax
+    double baseAmount = useInlineTax ? subTotal : subTotalExcludingTax;
+    double amountAfterDiscount = baseAmount;
+
     if (discountType == "fixed") {
       discountType = "$symbol $discountAmount";
-      String tAmount = (subTotalExcludingTax - discountAmount).toString();
-      allAmounts['taxAmount'] = Helper().formatCurrency(
-          (double.parse(tAmount) * (tax / 100)).toStringAsFixed(2));
-      allAmounts['totalAmount'] =
-          (double.parse(tAmount) + double.parse(allAmounts['taxAmount']))
-              .toString();
+      amountAfterDiscount = baseAmount - discountAmount;
       allAmounts['discountAmount'] = discountAmount;
       allAmounts['discountType'] = discountType;
     } else if (discountType == "percentage") {
       discountType = discountAmount.toString() + " %";
-      discountAmount = subTotalExcludingTax * (discountAmount / 100);
-      String tAmount = (subTotalExcludingTax - discountAmount).toString();
-      allAmounts['taxAmount'] = Helper().formatCurrency(
-          (double.parse(tAmount) * (tax / 100)).toStringAsFixed(2));
-      allAmounts['totalAmount'] =
-          (double.parse(tAmount) + double.parse(allAmounts['taxAmount']))
-              .toStringAsFixed(2);
+      discountAmount = baseAmount * (discountAmount / 100);
+      amountAfterDiscount = baseAmount - discountAmount;
       allAmounts['discountAmount'] = discountAmount;
       allAmounts['discountType'] = discountType;
+    } else {
+      // No discount case
+      allAmounts['discountAmount'] = 0.0;
+      allAmounts['discountType'] = "";
     }
+
+    // Calculate tax as a numeric value first
+    double taxValue;
+    double totalWithTax;
+
+    if (useInlineTax) {
+      // Use inline tax (already calculated in product details)
+      // Discount should be applied to the amount excluding tax
+      if (discountAmount > 0) {
+        // Need to recalculate: discount applies to pre-tax amount
+        double basePreTax = subTotalExcludingTax;
+        double discountedPreTax = basePreTax - (discountType.contains('%')
+            ? (basePreTax * (double.parse(discountType.replaceAll(RegExp(r'[^0-9.]'), '')) / 100))
+            : discountAmount);
+        taxValue = inlineTaxAmount * (discountedPreTax / basePreTax);
+      } else {
+        taxValue = inlineTaxAmount;
+      }
+      totalWithTax = (subTotalExcludingTax - (allAmounts['discountAmount'] as double)) + taxValue;
+    } else {
+      // Use transaction-level tax calculation
+      taxValue = amountAfterDiscount * (tax / 100);
+      totalWithTax = amountAfterDiscount + taxValue;
+    }
+
+    // Debug logging
+    print('DEBUG getTotalAmount:');
+    print('  useInlineTax: $useInlineTax');
+    print('  tax rate: $tax%');
+    print('  baseAmount: $baseAmount');
+    print('  amountAfterDiscount: $amountAfterDiscount');
+    print('  taxValue: $taxValue');
+    print('  totalWithTax: $totalWithTax');
+
+    // Format for display
+    allAmounts['taxAmount'] = Helper().formatCurrency(taxValue.toStringAsFixed(2));
+    // Use the numeric value for total calculation
+    allAmounts['totalAmount'] = totalWithTax.toStringAsFixed(2);
+
+    print('  allAmounts[taxAmount]: ${allAmounts['taxAmount']}');
+    print('  allAmounts[totalAmount]: ${allAmounts['totalAmount']}');
+
     return allAmounts;
   }
 
@@ -149,7 +195,7 @@ class InvoiceFormatter {
     String shippingHtml = '';
     String taxLabel = '';
     String taxNumber = '';
-    setTax(taxId);
+    await setTax(taxId);
     String products = await generateProductDetails(sellId, context);
     List sells = await SellDatabase().getSellBySellId(sellId);
     if (sells.isEmpty) {
@@ -246,15 +292,27 @@ class InvoiceFormatter {
     Map<String, dynamic> getAmounts = getTotalAmount(
         discountType: discountType,
         discountAmount: discountAmount,
-        symbol: symbol);
+        symbol: symbol,
+        useInlineTax: (taxId == null || taxId == 0));
 
     discountAmount = getAmounts['discountAmount'];
     discountType = getAmounts['discountType'];
     String taxAmount = getAmounts['taxAmount'];
+
+    print('DEBUG Invoice Generation:');
+    print('  taxId: $taxId');
+    print('  useInlineTax: ${taxId == null || taxId == 0}');
+    print('  inlineTaxAmount: $inlineTaxAmount');
+    print('  getAmounts[totalAmount]: ${getAmounts['totalAmount']}');
+    print('  shipping_charges: ${sells[0]['shipping_charges']}');
+
     String totalAmount =
         (double.parse(getAmounts['totalAmount']) + sells[0]['shipping_charges'])
             .toStringAsFixed(2);
     String sTotal = subTotalExcludingTax.toString();
+
+    print('  totalAmount (after shipping): $totalAmount');
+    print('  sTotal (subtotal): $sTotal');
     var totalReceived;
     var returnAmount;
     var dueAmount;
