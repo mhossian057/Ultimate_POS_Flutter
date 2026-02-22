@@ -2,7 +2,7 @@ import 'dart:ui';
 //import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class Config {
-  static String baseUrl = 'https://secure.billmateapp.com/';
+  static String baseUrl = 'https://dev.gtsoftwares.com/';
 
   // static String baseUrl = 'https://billmate.gtsoftwares.com/';
   // static String baseUrlProd = 'https://secure.billmateapp.com/';

@@ -98,17 +98,13 @@ class InvoiceFormatter {
   }
 
   Future<void> setTax(taxId) async {
-    print('DEBUG setTax called with taxId: $taxId');
     List value = await System().get('tax');
-    print('DEBUG tax list: $value');
     value.forEach((element) {
       if (element['id'] == taxId) {
         taxName = element['name'];
         tax = double.parse(element['amount'].toString());
-        print('DEBUG Tax found: $taxName = $tax%');
       }
     });
-    print('DEBUG Final tax value: $tax');
   }
 
   Map<String, dynamic> getTotalAmount(
@@ -164,22 +160,10 @@ class InvoiceFormatter {
       totalWithTax = amountAfterDiscount + taxValue;
     }
 
-    // Debug logging
-    print('DEBUG getTotalAmount:');
-    print('  useInlineTax: $useInlineTax');
-    print('  tax rate: $tax%');
-    print('  baseAmount: $baseAmount');
-    print('  amountAfterDiscount: $amountAfterDiscount');
-    print('  taxValue: $taxValue');
-    print('  totalWithTax: $totalWithTax');
-
     // Format for display
     allAmounts['taxAmount'] = Helper().formatCurrency(taxValue.toStringAsFixed(2));
     // Use the numeric value for total calculation
     allAmounts['totalAmount'] = totalWithTax.toStringAsFixed(2);
-
-    print('  allAmounts[taxAmount]: ${allAmounts['taxAmount']}');
-    print('  allAmounts[totalAmount]: ${allAmounts['totalAmount']}');
 
     return allAmounts;
   }
@@ -298,21 +282,10 @@ class InvoiceFormatter {
     discountAmount = getAmounts['discountAmount'];
     discountType = getAmounts['discountType'];
     String taxAmount = getAmounts['taxAmount'];
-
-    print('DEBUG Invoice Generation:');
-    print('  taxId: $taxId');
-    print('  useInlineTax: ${taxId == null || taxId == 0}');
-    print('  inlineTaxAmount: $inlineTaxAmount');
-    print('  getAmounts[totalAmount]: ${getAmounts['totalAmount']}');
-    print('  shipping_charges: ${sells[0]['shipping_charges']}');
-
     String totalAmount =
         (double.parse(getAmounts['totalAmount']) + sells[0]['shipping_charges'])
             .toStringAsFixed(2);
     String sTotal = subTotalExcludingTax.toString();
-
-    print('  totalAmount (after shipping): $totalAmount');
-    print('  sTotal (subtotal): $sTotal');
     var totalReceived;
     var returnAmount;
     var dueAmount;
