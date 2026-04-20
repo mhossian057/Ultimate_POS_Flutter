@@ -187,7 +187,7 @@ class AllSalesItem extends StatelessWidget {
                 ),
               ),
               Text(
-                "$symbol ${salesItem['invoice_amount']}",
+                "$symbol ${double.tryParse(salesItem['invoice_amount'].toString())?.toStringAsFixed(2) ?? '0.00'}",
                 style: AppTheme.getTextStyle(
                   themeData.textTheme.titleMedium,
                   fontWeight: 700,
@@ -226,7 +226,7 @@ class AllSalesItem extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  "$symbol ${salesItem['paid_amount']}",
+                  "$symbol ${double.tryParse(salesItem['paid_amount'].toString())?.toStringAsFixed(2) ?? '0.00'}",
                   style: AppTheme.getTextStyle(
                     themeData.textTheme.titleMedium,
                     fontWeight: 700,

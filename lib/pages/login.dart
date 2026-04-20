@@ -44,7 +44,7 @@ class _LoginState extends State<Login> {
   void dispose() {
     usernameController.dispose();
     passwordController.dispose();
-    timer!.cancel();
+    timer?.cancel();
     super.dispose();
   }
 
@@ -229,7 +229,7 @@ class _LoginState extends State<Login> {
                                       usernameController.text,
                                       passwordController.text);
 
-                                  if (loginResponse!['success']) {
+                                  if (loginResponse != null && loginResponse['success'] == true) {
                                     //schedule job for syncing callLogs
                                     Helper().jobScheduler();
                                     //Get current logged in user details and save it.
